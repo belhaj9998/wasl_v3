@@ -5,5 +5,6 @@ dotenv.config();
 export const config={
     port:process.env.PORT,
     databaseUrl:process.env.DATABASE_URL,
-    appName:process.env.APP_NAME
+    appName:process.env.APP_NAME,
+    jwtSecret:process.env.JWT_SECRET
 }

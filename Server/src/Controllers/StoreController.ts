@@ -1,5 +1,5 @@
 import { Request , Response } from "express";
-import prisma from "../Configs/prisma";
+import prisma from "../configs/prisma";
 
 
 
