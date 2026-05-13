@@ -3,3 +3,10 @@ node_modules
 .env
 
 /generated/prisma
+
+# Coverage reports
+src/coverage/
+coverage/
+
+# OS files
+.DS_Store

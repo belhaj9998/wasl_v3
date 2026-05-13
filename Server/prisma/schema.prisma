@@ -133,21 +133,37 @@ enum DiscountType {
 }
 
 model User {
-  id                  Int                 @id @default(autoincrement())
-  name                String
-  email               String              @unique
-  phone               String              @unique
-  password_hash       String
-  avatar_url          String?
-  system_role         SystemRole          @default(USER)
-  is_active           Boolean             @default(true)
-  last_login_at       DateTime?
-  created_at          DateTime            @default(now())
-  updated_at          DateTime            @updatedAt
-  memberships         StoreMembership[]
-  created_memberships StoreMembership[]   @relation("MembershipInviter")
-  inventory_actions   InventoryMovement[]
-  order_actions       OrderTimeline[]
+  id                     Int                 @id @default(autoincrement())
+  name                   String
+  email                  String              @unique
+  phone                  String              @unique
+  password               String
+  avatar_url             String?
+  system_role            SystemRole          @default(USER)
+  is_active              Boolean             @default(true)
+  last_login_at          DateTime?
+  deleted_at             DateTime?
+  reset_token            String?
+  reset_token_expires_at DateTime?
+  created_at             DateTime            @default(now())
+  updated_at             DateTime            @updatedAt
+  memberships            StoreMembership[]
+  created_memberships    StoreMembership[]   @relation("MembershipInviter")
+  inventory_actions      InventoryMovement[]
+  order_actions          OrderTimeline[]
+  refresh_tokens         RefreshToken[]
+}
+
+model RefreshToken {
+  id         Int      @id @default(autoincrement())
+  user_id    Int
+  token      String
+  expires_at DateTime
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([token])
 }
 
 model Store {
@@ -169,6 +185,7 @@ model Store {
   support_phone       String?
   meta_title          String?
   meta_description    String?
+  deleted_at          DateTime?
   created_at          DateTime             @default(now())
   updated_at          DateTime             @updatedAt
   memberships         StoreMembership[]
@@ -206,6 +223,7 @@ model SubscriptionPlan {
   max_stores    Int?
   max_products  Int?
   max_staff     Int?
+  deleted_at    DateTime?
   created_at    DateTime            @default(now())
   updated_at    DateTime            @updatedAt
   subscriptions StoreSubscription[]
@@ -297,6 +315,7 @@ model Category {
   store_id      Int
   name          String
   slug          String
+  description   String?
   parent_id     Int?
   image_url     String?
   sort_order    Int               @default(0)
@@ -486,6 +505,7 @@ model Customer {
   last_name         String?
   email             String?
   phone             String?
+  password_hash     String?
   gender            String?
   birth_date        DateTime?
   notes             String?
@@ -737,11 +757,12 @@ model Shipment {
   store                Store          @relation(fields: [store_id], references: [id], onDelete: Cascade)
   order                Order          @relation(fields: [order_id, store_id], references: [id, store_id], onDelete: Cascade)
 
+  @@unique([id, store_id])
   @@index([order_id])
 }
 
 model OrderTimeline {
-  id            Int          @id @default(autoincrement())
+  id            Int             @id @default(autoincrement())
   store_id      Int
   order_id      Int
   actor_user_id Int?
@@ -750,10 +771,10 @@ model OrderTimeline {
   to_status     ShipmentStatus?
   note          String?
   payload       Json?
-  created_at    DateTime     @default(now())
-  store         Store        @relation(fields: [store_id], references: [id], onDelete: Cascade)
-  order         Order        @relation(fields: [order_id, store_id], references: [id, store_id], onDelete: Cascade)
-  actor         User?        @relation(fields: [actor_user_id], references: [id], onDelete: SetNull)
+  created_at    DateTime        @default(now())
+  store         Store           @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  order         Order           @relation(fields: [order_id, store_id], references: [id, store_id], onDelete: Cascade)
+  actor         User?           @relation(fields: [actor_user_id], references: [id], onDelete: SetNull)
 
   @@index([order_id, created_at])
 }
