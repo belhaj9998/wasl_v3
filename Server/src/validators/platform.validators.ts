@@ -34,11 +34,19 @@ export const createPlanSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9-]+$/, "Code must be lowercase alphanumeric and hyphens"),
   name: z.string().min(1).max(100),
-  price_monthly: z.number().min(0.01).max(999999.99),
-  price_yearly: z.number().min(0.01).max(9999999.99).optional(),
-  max_stores: z.number().int().min(1).max(10000).optional(),
-  max_products: z.number().int().min(1).max(1000000).optional(),
-  max_staff: z.number().int().min(1).max(10000).optional(),
+  price_monthly: z.coerce.number().min(0.01).max(999999.99),
+  price_yearly: z.coerce.number().min(0.01).max(9999999.99).optional(),
+  max_stores: z.coerce.number().int().min(1).max(10000).optional().nullable(),
+  max_products: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000000)
+    .optional()
+    .nullable(),
+  max_staff: z.coerce.number().int().min(1).max(10000).optional().nullable(),
+  features: z.record(z.string(), z.unknown()).optional(),
+  is_active: z.boolean().optional(),
 });
 
 /**
@@ -47,11 +55,24 @@ export const createPlanSchema = z.object({
  */
 export const updatePlanSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  price_monthly: z.number().min(0.01).max(999999.99).optional(),
-  price_yearly: z.number().min(0.01).max(9999999.99).nullable().optional(),
-  max_stores: z.number().int().min(1).max(10000).nullable().optional(),
-  max_products: z.number().int().min(1).max(1000000).nullable().optional(),
-  max_staff: z.number().int().min(1).max(10000).nullable().optional(),
+  price_monthly: z.coerce.number().min(0.01).max(999999.99).optional(),
+  price_yearly: z.coerce
+    .number()
+    .min(0.01)
+    .max(9999999.99)
+    .nullable()
+    .optional(),
+  max_stores: z.coerce.number().int().min(1).max(10000).nullable().optional(),
+  max_products: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1000000)
+    .nullable()
+    .optional(),
+  max_staff: z.coerce.number().int().min(1).max(10000).nullable().optional(),
+  features: z.record(z.string(), z.unknown()).optional(),
+  is_active: z.boolean().optional(),
 });
 
 /**

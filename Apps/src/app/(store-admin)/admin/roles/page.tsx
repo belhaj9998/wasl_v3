@@ -1,0 +1,661 @@
+"use client";
+
+/**
+ * Roles Management Page
+ * Displays roles list with create/edit dialog.
+ * Columns: name, description, permissions count.
+ * Implements create/edit form with roleSchema (name: 2-50, description: max 255).
+ * Implements permissions assignment (checkbox list of all available permissions).
+ * Handles delete with confirmation.
+ *
+ * Requirements: 14.1
+ */
+
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type ColumnDef } from "@tanstack/react-table";
+import {
+  Shield,
+  Plus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Key,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import { DataTable } from "@/components/tables/DataTable";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { PermissionGate } from "@/components/shared/PermissionGate";
+import { FormField } from "@/components/forms/FormField";
+import { SubmitButton } from "@/components/forms/SubmitButton";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import { useStore } from "@/hooks/useStore";
+import {
+  roleService,
+  type Role,
+  type CreateRolePayload,
+} from "@/lib/api/services/role.service";
+import { roleSchema, type RoleFormData } from "@/lib/validators/role.schema";
+import {
+  platformService,
+  type Permission,
+} from "@/lib/api/services/platform.service";
+
+// ─── Role Form Dialog ────────────────────────────────────────────────────────
+
+interface RoleDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  editingRole: Role | null;
+  onSubmit: (data: RoleFormData) => Promise<void>;
+  isSubmitting: boolean;
+}
+
+function RoleDialog({
+  open,
+  onOpenChange,
+  editingRole,
+  onSubmit,
+  isSubmitting,
+}: RoleDialogProps) {
+  const { control, handleSubmit, reset } = useForm<RoleFormData>({
+    resolver: zodResolver(roleSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+    },
+  });
+
+  // Reset form when dialog opens or editing role changes
+  useEffect(() => {
+    if (open) {
+      if (editingRole) {
+        reset({
+          name: editingRole.name,
+          description: editingRole.description || "",
+        });
+      } else {
+        reset({ name: "", description: "" });
+      }
+    }
+  }, [open, editingRole, reset]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>
+            {editingRole ? "تعديل الدور" : "إنشاء دور جديد"}
+          </DialogTitle>
+          <DialogDescription>
+            {editingRole
+              ? "قم بتعديل بيانات الدور"
+              : "أدخل بيانات الدور الجديد"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <FormField
+            control={control}
+            name="name"
+            label="اسم الدور"
+            type="text"
+            placeholder="مثال: مدير المبيعات"
+            required
+          />
+
+          <FormField
+            control={control}
+            name="description"
+            label="الوصف"
+            type="textarea"
+            placeholder="وصف مختصر لصلاحيات هذا الدور..."
+          />
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={isSubmitting}
+            >
+              إلغاء
+            </Button>
+            <SubmitButton isSubmitting={isSubmitting}>
+              {editingRole ? "حفظ" : "إنشاء"}
+            </SubmitButton>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Permissions Dialog ──────────────────────────────────────────────────────
+
+interface PermissionsDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  role: Role | null;
+  allPermissions: Permission[];
+  onSave: (roleId: number, permissions: string[]) => Promise<void>;
+  isSaving: boolean;
+}
+
+function PermissionsDialog({
+  open,
+  onOpenChange,
+  role,
+  allPermissions,
+  onSave,
+  isSaving,
+}: PermissionsDialogProps) {
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+
+  // Initialize selected permissions when dialog opens
+  useEffect(() => {
+    if (open && role) {
+      setSelectedPermissions(role.permissions || []);
+    }
+  }, [open, role]);
+
+  // Group permissions by module
+  const groupedPermissions = useMemo(() => {
+    const groups: Record<string, Permission[]> = {};
+    for (const perm of allPermissions) {
+      const group = perm.group || perm.code.split(":")[0] || "other";
+      if (!groups[group]) {
+        groups[group] = [];
+      }
+      groups[group].push(perm);
+    }
+    return groups;
+  }, [allPermissions]);
+
+  const handleToggle = useCallback((code: string) => {
+    setSelectedPermissions((prev) =>
+      prev.includes(code) ? prev.filter((p) => p !== code) : [...prev, code],
+    );
+  }, []);
+
+  const handleSelectAll = useCallback(
+    (group: string, perms: Permission[]) => {
+      const codes = perms.map((p) => p.code);
+      const allSelected = codes.every((c) => selectedPermissions.includes(c));
+
+      if (allSelected) {
+        setSelectedPermissions((prev) =>
+          prev.filter((p) => !codes.includes(p)),
+        );
+      } else {
+        setSelectedPermissions((prev) => [
+          ...prev,
+          ...codes.filter((c) => !prev.includes(c)),
+        ]);
+      }
+    },
+    [selectedPermissions],
+  );
+
+  const handleSave = useCallback(() => {
+    if (!role) return;
+    onSave(role.id, selectedPermissions);
+  }, [role, selectedPermissions, onSave]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>إدارة صلاحيات: {role?.name}</DialogTitle>
+          <DialogDescription>
+            حدد الصلاحيات المتاحة لهذا الدور
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {Object.entries(groupedPermissions).map(([group, perms]) => {
+            const allSelected = perms.every((p) =>
+              selectedPermissions.includes(p.code),
+            );
+            const someSelected =
+              !allSelected &&
+              perms.some((p) => selectedPermissions.includes(p.code));
+
+            return (
+              <div key={group} className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`group-${group}`}
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) {
+                        (el as unknown as HTMLInputElement).indeterminate =
+                          someSelected;
+                      }
+                    }}
+                    onCheckedChange={() => handleSelectAll(group, perms)}
+                  />
+                  <Label
+                    htmlFor={`group-${group}`}
+                    className="font-semibold capitalize cursor-pointer"
+                  >
+                    {group}
+                  </Label>
+                  <Badge variant="secondary" className="text-xs">
+                    {
+                      perms.filter((p) => selectedPermissions.includes(p.code))
+                        .length
+                    }
+                    /{perms.length}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 ps-6">
+                  {perms.map((perm) => (
+                    <div key={perm.code} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`perm-${perm.code}`}
+                        checked={selectedPermissions.includes(perm.code)}
+                        onCheckedChange={() => handleToggle(perm.code)}
+                      />
+                      <Label
+                        htmlFor={`perm-${perm.code}`}
+                        className="text-sm cursor-pointer"
+                      >
+                        {perm.name || perm.code}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {allPermissions.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              لا توجد صلاحيات متاحة
+            </p>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSaving}
+          >
+            إلغاء
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving}>
+            {isSaving ? "جاري الحفظ..." : "حفظ الصلاحيات"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Roles Page ──────────────────────────────────────────────────────────────
+
+export default function RolesPage() {
+  const { currentStoreId } = useStore();
+
+  // State
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Role form dialog
+  const [roleDialogOpen, setRoleDialogOpen] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Permissions dialog
+  const [permDialogOpen, setPermDialogOpen] = useState(false);
+  const [permRole, setPermRole] = useState<Role | null>(null);
+  const [isSavingPerms, setIsSavingPerms] = useState(false);
+
+  // Delete confirmation
+  const [deleteDialog, setDeleteDialog] = useState<{
+    open: boolean;
+    role: Role | null;
+  }>({ open: false, role: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // ========== Data Fetching ==========
+
+  const fetchRoles = useCallback(async () => {
+    if (!currentStoreId) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await roleService.getAll(currentStoreId);
+      setRoles(response.data);
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? (err as { message: string }).message
+          : "فشل تحميل الأدوار";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentStoreId]);
+
+  const fetchPermissions = useCallback(async () => {
+    try {
+      const response = await platformService.permissions.getAll();
+      setAllPermissions(response.data ?? []);
+    } catch {
+      // Non-critical — permissions list may fail
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRoles();
+    fetchPermissions();
+  }, [fetchRoles, fetchPermissions]);
+
+  // ========== Create/Edit Role ==========
+
+  const handleOpenCreate = useCallback(() => {
+    setEditingRole(null);
+    setRoleDialogOpen(true);
+  }, []);
+
+  const handleOpenEdit = useCallback((role: Role) => {
+    setEditingRole(role);
+    setRoleDialogOpen(true);
+  }, []);
+
+  const handleRoleSubmit = useCallback(
+    async (data: RoleFormData) => {
+      if (!currentStoreId) return;
+
+      setIsSubmitting(true);
+      try {
+        if (editingRole) {
+          // Update
+          await roleService.update(currentStoreId, editingRole.id, {
+            name: data.name,
+            description: data.description || undefined,
+          });
+          toast.success("تم تحديث الدور بنجاح");
+        } else {
+          // Create
+          const payload: CreateRolePayload = {
+            name: data.name,
+            description: data.description || undefined,
+          };
+          await roleService.create(currentStoreId, payload);
+          toast.success("تم إنشاء الدور بنجاح");
+        }
+        setRoleDialogOpen(false);
+        fetchRoles();
+      } catch (err: unknown) {
+        const message =
+          err && typeof err === "object" && "message" in err
+            ? (err as { message: string }).message
+            : editingRole
+              ? "فشل تحديث الدور"
+              : "فشل إنشاء الدور";
+        toast.error(message);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [currentStoreId, editingRole, fetchRoles],
+  );
+
+  // ========== Permissions Assignment ==========
+
+  const handleOpenPermissions = useCallback((role: Role) => {
+    setPermRole(role);
+    setPermDialogOpen(true);
+  }, []);
+
+  const handleSavePermissions = useCallback(
+    async (roleId: number, permissions: string[]) => {
+      if (!currentStoreId) return;
+
+      setIsSavingPerms(true);
+      try {
+        await roleService.updatePermissions(currentStoreId, roleId, {
+          permissions,
+        });
+        toast.success("تم تحديث الصلاحيات بنجاح");
+        setPermDialogOpen(false);
+        fetchRoles();
+      } catch (err: unknown) {
+        const message =
+          err && typeof err === "object" && "message" in err
+            ? (err as { message: string }).message
+            : "فشل تحديث الصلاحيات";
+        toast.error(message);
+      } finally {
+        setIsSavingPerms(false);
+      }
+    },
+    [currentStoreId, fetchRoles],
+  );
+
+  // ========== Delete Role ==========
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteDialog.role || !currentStoreId) return;
+
+    setDeleteLoading(true);
+    try {
+      await roleService.delete(currentStoreId, deleteDialog.role.id);
+      toast.success("تم حذف الدور بنجاح");
+      setDeleteDialog({ open: false, role: null });
+      fetchRoles();
+    } catch (err: unknown) {
+      const message =
+        err && typeof err === "object" && "message" in err
+          ? (err as { message: string }).message
+          : "فشل حذف الدور";
+      toast.error(message);
+    } finally {
+      setDeleteLoading(false);
+    }
+  }, [deleteDialog.role, currentStoreId, fetchRoles]);
+
+  // ========== Retry ==========
+
+  const handleRetry = useCallback(() => {
+    fetchRoles();
+  }, [fetchRoles]);
+
+  // ========== Table Columns ==========
+
+  const columns: ColumnDef<Role, unknown>[] = useMemo(
+    () => [
+      {
+        id: "name",
+        accessorKey: "name",
+        header: "اسم الدور",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span className="font-medium">{row.original.name}</span>
+            {row.original.is_system && (
+              <Badge variant="secondary" className="text-xs">
+                نظام
+              </Badge>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "description",
+        accessorKey: "description",
+        header: "الوصف",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-sm">
+            {row.original.description || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "permissions_count",
+        header: "عدد الصلاحيات",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge variant="outline">
+            {row.original.permissions?.length ?? 0} صلاحية
+          </Badge>
+        ),
+      },
+      {
+        id: "actions",
+        header: "الإجراءات",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const role = row.original;
+          const isProtected = role.is_system;
+
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">إجراءات</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {/* Edit */}
+                <PermissionGate permission="role:update">
+                  <DropdownMenuItem
+                    onClick={() => handleOpenEdit(role)}
+                    disabled={isProtected}
+                  >
+                    <Pencil className="me-2 h-4 w-4" />
+                    تعديل
+                  </DropdownMenuItem>
+                </PermissionGate>
+
+                {/* Manage Permissions */}
+                <PermissionGate permission="role:update">
+                  <DropdownMenuItem onClick={() => handleOpenPermissions(role)}>
+                    <Key className="me-2 h-4 w-4" />
+                    إدارة الصلاحيات
+                  </DropdownMenuItem>
+                </PermissionGate>
+
+                <DropdownMenuSeparator />
+
+                {/* Delete */}
+                <PermissionGate permission="role:delete">
+                  <DropdownMenuItem
+                    onClick={() => setDeleteDialog({ open: true, role })}
+                    disabled={isProtected}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="me-2 h-4 w-4" />
+                    حذف
+                  </DropdownMenuItem>
+                </PermissionGate>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [handleOpenEdit, handleOpenPermissions],
+  );
+
+  // ========== Render ==========
+
+  return (
+    <div className="space-y-6">
+      {/* Page header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">الأدوار</h2>
+          <p className="text-muted-foreground">
+            إدارة أدوار وصلاحيات فريق العمل
+          </p>
+        </div>
+
+        {/* Create Role button — permission-gated */}
+        <PermissionGate permission="role:create">
+          <Button onClick={handleOpenCreate}>
+            <Plus className="me-2 h-4 w-4" />
+            إنشاء دور
+          </Button>
+        </PermissionGate>
+      </div>
+
+      {/* Data Table */}
+      <DataTable
+        columns={columns}
+        data={roles}
+        meta={null}
+        loading={loading}
+        error={error}
+        onRetry={handleRetry}
+        emptyMessage="لا توجد أدوار"
+        emptyIcon={<Shield className="h-12 w-12" />}
+      />
+
+      {/* Create/Edit Role Dialog */}
+      <RoleDialog
+        open={roleDialogOpen}
+        onOpenChange={setRoleDialogOpen}
+        editingRole={editingRole}
+        onSubmit={handleRoleSubmit}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Permissions Assignment Dialog */}
+      <PermissionsDialog
+        open={permDialogOpen}
+        onOpenChange={setPermDialogOpen}
+        role={permRole}
+        allPermissions={allPermissions}
+        onSave={handleSavePermissions}
+        isSaving={isSavingPerms}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialog.open}
+        onOpenChange={(open) => {
+          if (!open) setDeleteDialog({ open: false, role: null });
+        }}
+        title="حذف الدور"
+        description={`هل أنت متأكد من حذف الدور "${deleteDialog.role?.name}"؟ سيتم إزالة جميع الصلاحيات المرتبطة به.`}
+        confirmLabel="حذف"
+        cancelLabel="إلغاء"
+        onConfirm={handleDeleteConfirm}
+        destructive
+        loading={deleteLoading}
+      />
+    </div>
+  );
+}

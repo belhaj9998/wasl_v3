@@ -12,27 +12,51 @@ import {
 export class DashboardService {
   /**
    * Returns platform-wide counts:
-   * - totalUsers: non-deleted users
-   * - totalStores: non-deleted stores
-   * - activeStores: non-deleted stores with status ACTIVE
-   * - totalSubscriptions: all subscriptions
+   * - total_users: non-deleted users
+   * - total_stores: non-deleted stores
+   * - total_orders: all orders
+   * - total_revenue: sum from active/trialing subscriptions
+   * - active_subscriptions: subscriptions with ACTIVE or TRIALING status
    */
   async getStats(): Promise<DashboardStats> {
-    const [totalUsers, totalStores, activeStores, totalSubscriptions] =
-      await Promise.all([
-        prisma.user.count({ where: { deleted_at: null } }),
-        prisma.store.count({ where: { deleted_at: null } }),
-        prisma.store.count({
-          where: { status: "ACTIVE", deleted_at: null },
-        }),
-        prisma.storeSubscription.count(),
-      ]);
-
-    return {
+    const [
       totalUsers,
       totalStores,
-      activeStores,
-      totalSubscriptions,
+      totalOrders,
+      activeSubscriptions,
+      subscriptions,
+    ] = await Promise.all([
+      prisma.user.count({ where: { deleted_at: null } }),
+      prisma.store.count({ where: { deleted_at: null } }),
+      prisma.order.count(),
+      prisma.storeSubscription.count({
+        where: { status: { in: ["ACTIVE", "TRIALING"] } },
+      }),
+      prisma.storeSubscription.findMany({
+        where: { status: { in: ["ACTIVE", "TRIALING"] } },
+        include: { plan: true },
+      }),
+    ]);
+
+    // Calculate total revenue from active subscriptions
+    let totalRevenue = 0;
+    for (const sub of subscriptions) {
+      if (sub.billing_cycle === "MONTHLY") {
+        totalRevenue += Number(sub.plan.price_monthly);
+      } else if (sub.billing_cycle === "YEARLY") {
+        const yearlyPrice = sub.plan.price_yearly
+          ? Number(sub.plan.price_yearly)
+          : Number(sub.plan.price_monthly) * 12;
+        totalRevenue += yearlyPrice;
+      }
+    }
+
+    return {
+      total_users: totalUsers,
+      total_stores: totalStores,
+      total_orders: totalOrders,
+      total_revenue: (Math.round(totalRevenue * 100) / 100).toFixed(2),
+      active_subscriptions: activeSubscriptions,
     };
   }
 

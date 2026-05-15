@@ -1,6 +1,6 @@
 import { Response } from "express";
 import { asyncHandler } from "../../utils/asyncHandler";
-import { sendSuccess } from "../../utils/apiResponse";
+import { sendSuccess, sendPaginated } from "../../utils/apiResponse";
 import { planService } from "../../services/platform/plan.Service";
 import { AppRequest } from "../../types";
 
@@ -16,7 +16,13 @@ import { AppRequest } from "../../types";
 export const list = asyncHandler(async (req: AppRequest, res: Response) => {
   const plans = await planService.list();
 
-  sendSuccess(res, { plans }, "Plans retrieved");
+  // Return as paginated response format for frontend compatibility
+  sendPaginated(
+    res,
+    plans,
+    { total: plans.length, page: 1, limit: plans.length, totalPages: 1 },
+    "Plans retrieved",
+  );
 });
 
 /**

@@ -4,6 +4,11 @@ node_modules
 
 /generated/prisma
 
+# Compiled output
+dist/
+prisma.config.js
+src/**/*.js
+
 # Coverage reports
 src/coverage/
 coverage/

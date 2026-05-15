@@ -1,10 +1,11 @@
 import { StoreStatus, SubscriptionStatus } from "../../generated/prisma";
 
 export interface DashboardStats {
-  totalUsers: number;
-  totalStores: number;
-  activeStores: number;
-  totalSubscriptions: number;
+  total_users: number;
+  total_stores: number;
+  total_orders: number;
+  total_revenue: string;
+  active_subscriptions: number;
 }
 
 export interface RevenueData {
