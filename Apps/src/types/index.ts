@@ -8,3 +8,5 @@ export * from "./product.types";
 export * from "./order.types";
 export * from "./store.types";
 export * from "./global.types";
+export * from "./notification.types";
+export * from "./notification.types";

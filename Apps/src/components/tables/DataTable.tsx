@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import {
   useReactTable,
   getCoreRowModel,
@@ -66,6 +67,8 @@ export function DataTable<TData>({
   emptyMessage,
   emptyIcon,
 }: DataTableProps<TData>) {
+  const t = useTranslations("table");
+  const tCommon = useTranslations("common");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     open: boolean;
@@ -128,7 +131,7 @@ export function DataTable<TData>({
         <p className="mb-4 text-sm text-destructive">{error}</p>
         {onRetry && (
           <Button variant="outline" onClick={onRetry}>
-            إعادة المحاولة
+            {tCommon("retry")}
           </Button>
         )}
       </div>
@@ -221,7 +224,9 @@ export function DataTable<TData>({
         <div className="flex items-center justify-between px-2">
           {/* Page size selector */}
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">عرض</span>
+            <span className="text-sm text-muted-foreground">
+              {t("perPage")}
+            </span>
             <Select
               value={String(currentLimit)}
               onValueChange={handleLimitChange}
@@ -238,7 +243,7 @@ export function DataTable<TData>({
               </SelectContent>
             </Select>
             <span className="text-sm text-muted-foreground">
-              من أصل {totalRecords}
+              {t("of")} {totalRecords}
             </span>
           </div>
 
@@ -250,10 +255,10 @@ export function DataTable<TData>({
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage <= 1}
             >
-              السابق
+              {tCommon("previous")}
             </Button>
             <span className="text-sm text-muted-foreground">
-              صفحة {currentPage} من {totalPages}
+              {t("page")} {currentPage} {t("of")} {totalPages}
             </span>
             <Button
               variant="outline"
@@ -261,7 +266,7 @@ export function DataTable<TData>({
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage >= totalPages}
             >
-              التالي
+              {tCommon("next")}
             </Button>
           </div>
         </div>

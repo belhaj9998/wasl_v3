@@ -34,7 +34,7 @@ export const config: AppConfig = {
   // JWT
   jwtSecret: process.env.JWT_SECRET || "",
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "",
-  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || "15m",
+  jwtAccessExpiry: process.env.JWT_ACCESS_EXPIRY || "7d",
   jwtRefreshExpiry: process.env.JWT_REFRESH_EXPIRY || "7d",
 
   // Customer JWT (separate from admin)

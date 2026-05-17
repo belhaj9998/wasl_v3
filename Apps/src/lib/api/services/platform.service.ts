@@ -70,6 +70,12 @@ export interface DashboardStats {
   total_orders: number;
   total_revenue: string;
   active_subscriptions: number;
+  // Previous month values for percentage change calculation
+  prev_users?: number;
+  prev_stores?: number;
+  prev_orders?: number;
+  prev_revenue?: string;
+  prev_subscriptions?: number;
 }
 
 export interface RevenueData {

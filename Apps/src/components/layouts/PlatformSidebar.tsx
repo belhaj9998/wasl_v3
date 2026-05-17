@@ -43,6 +43,8 @@ interface PlatformSidebarProps {
 export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const tSidebar = useTranslations("sidebar");
+  const tBrand = useTranslations("brand");
 
   const navItems: PlatformNavItem[] = [
     {
@@ -100,7 +102,9 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
       >
         <Logo size="sm" />
         {!collapsed && (
-          <span className="font-semibold text-lg text-foreground">وصل</span>
+          <span className="font-semibold text-lg text-foreground">
+            {tBrand("name")}
+          </span>
         )}
       </div>
 
@@ -164,7 +168,7 @@ export function PlatformSidebar({ collapsed, onToggle }: PlatformSidebarProps) {
           size="sm"
           onClick={onToggle}
           className="w-full justify-center"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? tSidebar("expand") : tSidebar("collapse")}
         >
           {collapsed ? (
             <PanelLeftOpen className="h-4 w-4" />

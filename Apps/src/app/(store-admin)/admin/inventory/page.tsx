@@ -14,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
 import { Warehouse, PackagePlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { DataTable } from "@/components/tables/DataTable";
 import { StatusBadge } from "@/components/shared/StatusBadge";
@@ -59,6 +60,8 @@ function AdjustmentDialog({
   onSubmit,
   isSubmitting,
 }: AdjustmentDialogProps) {
+  const t = useTranslations("inventory");
+  const tCommon = useTranslations("common");
   const { control, handleSubmit, reset, watch } =
     useForm<InventoryAdjustmentFormData>({
       resolver: zodResolver(inventoryAdjustmentSchema),
@@ -91,7 +94,10 @@ function AdjustmentDialog({
         data.quantity_change > item.available_quantity
       ) {
         toast.error(
-          `الكمية المطلوبة (${data.quantity_change}) تتجاوز الكمية المتاحة (${item.available_quantity})`,
+          t("quantityExceeded", {
+            requested: data.quantity_change,
+            available: item.available_quantity,
+          }),
         );
         return;
       }
@@ -104,30 +110,30 @@ function AdjustmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>تعديل المخزون</DialogTitle>
+          <DialogTitle>{t("adjustTitle")}</DialogTitle>
           <DialogDescription>
             {item
               ? `${item.product_name} — ${item.variant_title} (${item.sku})`
-              : "تعديل كمية المخزون"}
+              : t("adjustDescription")}
           </DialogDescription>
         </DialogHeader>
 
         {item && (
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
             <div className="flex justify-between">
-              <span>الكمية المتاحة:</span>
+              <span>{t("availableQuantity")}</span>
               <span className="font-medium text-foreground">
                 {item.available_quantity}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>الكمية الإجمالية:</span>
+              <span>{t("totalQuantity")}</span>
               <span className="font-medium text-foreground">
                 {item.total_quantity}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>الكمية المحجوزة:</span>
+              <span>{t("reservedQuantity")}</span>
               <span className="font-medium text-foreground">
                 {item.reserved_quantity}
               </span>
@@ -140,15 +146,15 @@ function AdjustmentDialog({
           <FormField
             control={control}
             name="type"
-            label="نوع التعديل"
+            label={t("adjustmentType")}
             type="select"
             options={[
-              { value: "IN", label: "إدخال (IN)" },
-              { value: "ADJUSTMENT_IN", label: "تعديل إدخال (ADJUSTMENT_IN)" },
-              { value: "OUT", label: "إخراج (OUT)" },
+              { value: "IN", label: t("typeIn") },
+              { value: "ADJUSTMENT_IN", label: t("typeAdjustmentIn") },
+              { value: "OUT", label: t("typeOut") },
               {
                 value: "ADJUSTMENT_OUT",
-                label: "تعديل إخراج (ADJUSTMENT_OUT)",
+                label: t("typeAdjustmentOut"),
               },
             ]}
             required
@@ -158,15 +164,15 @@ function AdjustmentDialog({
           <FormField
             control={control}
             name="quantity_change"
-            label="الكمية"
+            label={t("quantity")}
             type="number"
-            placeholder="1 - 99999"
+            placeholder={t("quantityPlaceholder")}
             required
             description={
               (adjustmentType === "OUT" ||
                 adjustmentType === "ADJUSTMENT_OUT") &&
               item
-                ? `الحد الأقصى: ${item.available_quantity}`
+                ? t("maxQuantity", { max: item.available_quantity })
                 : undefined
             }
           />
@@ -175,9 +181,9 @@ function AdjustmentDialog({
           <FormField
             control={control}
             name="reason"
-            label="السبب"
+            label={t("reason")}
             type="textarea"
-            placeholder="سبب التعديل (اختياري، حد أقصى 500 حرف)"
+            placeholder={t("reasonPlaceholder")}
           />
 
           {/* Submit */}
@@ -188,10 +194,10 @@ function AdjustmentDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              إلغاء
+              {tCommon("cancel")}
             </Button>
             <SubmitButton isSubmitting={isSubmitting}>
-              تأكيد التعديل
+              {t("confirmAdjust")}
             </SubmitButton>
           </div>
         </form>
@@ -205,6 +211,8 @@ function AdjustmentDialog({
 export default function InventoryPage() {
   const dispatch = useAppDispatch();
   const { currentStoreId } = useStore();
+  const tInv = useTranslations("inventory");
+  const tSuccess = useTranslations("success");
 
   const {
     items: inventoryItems,
@@ -280,7 +288,7 @@ export default function InventoryPage() {
             },
           }),
         ).unwrap();
-        toast.success("تم تعديل المخزون بنجاح");
+        toast.success(tSuccess("inventory.adjusted"));
         setAdjustDialog({ open: false, item: null });
 
         // Refetch inventory to get updated quantities
@@ -296,7 +304,8 @@ export default function InventoryPage() {
           }),
         );
       } catch (err: unknown) {
-        const message = typeof err === "string" ? err : "فشل تعديل المخزون";
+        const message =
+          typeof err === "string" ? err : tInv("adjustDescription");
         toast.error(message);
       } finally {
         setIsSubmitting(false);
@@ -327,7 +336,7 @@ export default function InventoryPage() {
       {
         id: "product_name",
         accessorKey: "product_name",
-        header: "المنتج / المتغير",
+        header: tInv("headerProduct"),
         enableSorting: true,
         cell: ({ row }) => (
           <div>
@@ -350,7 +359,7 @@ export default function InventoryPage() {
       {
         id: "available_quantity",
         accessorKey: "available_quantity",
-        header: "الكمية المتاحة",
+        header: tInv("headerAvailable"),
         enableSorting: true,
         cell: ({ row }) => {
           const { available_quantity, low_stock_threshold } = row.original;
@@ -368,27 +377,27 @@ export default function InventoryPage() {
       {
         id: "total_quantity",
         accessorKey: "total_quantity",
-        header: "الكمية الإجمالية",
+        header: tInv("headerTotal"),
         enableSorting: true,
         cell: ({ row }) => row.original.total_quantity,
       },
       {
         id: "reserved_quantity",
         accessorKey: "reserved_quantity",
-        header: "المحجوزة",
+        header: tInv("headerReserved"),
         enableSorting: true,
         cell: ({ row }) => row.original.reserved_quantity,
       },
       {
         id: "low_stock_threshold",
         accessorKey: "low_stock_threshold",
-        header: "حد التنبيه",
+        header: tInv("headerThreshold"),
         enableSorting: true,
         cell: ({ row }) => row.original.low_stock_threshold,
       },
       {
         id: "actions",
-        header: "الإجراءات",
+        header: tInv("headerActions"),
         enableSorting: false,
         cell: ({ row }) => {
           const item = row.original;

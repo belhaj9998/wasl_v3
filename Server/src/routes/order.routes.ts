@@ -43,6 +43,7 @@ import {
   orderIdParamSchema,
   shipmentIdParamSchema,
 } from "../validators/order.validators";
+import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as customerController from "../controllers/store-admin/customer.Controller";
 import * as couponController from "../controllers/store-admin/coupon.Controller";
 import * as orderController from "../controllers/store-admin/order.Controller";
@@ -53,14 +54,14 @@ import * as dashboardController from "../controllers/store-admin/dashboard.Contr
 const router = Router({ mergeParams: true });
 
 // Apply verifyToken and resolveStoreContext to ALL order module routes
-router.use(verifyToken, resolveStoreContext);
+router.use(verifyToken, resolveStoreContext, verifyStoreSubscriptionAccess);
 
 // ========== Customer Routes ==========
 
 // GET /customers — list customers (paginated)
 router.get(
   "/customers",
-  requirePermission("customer:view"),
+  requirePermission("customers.view"),
   validateQuery(customerListQuerySchema),
   customerController.list,
 );
@@ -68,7 +69,7 @@ router.get(
 // POST /customers — create a new customer
 router.post(
   "/customers",
-  requirePermission("customer:create"),
+  requirePermission("customers.manage"),
   validateBody(createCustomerSchema),
   customerController.create,
 );
@@ -76,7 +77,7 @@ router.post(
 // GET /customers/:customerId — get customer by ID
 router.get(
   "/customers/:customerId",
-  requirePermission("customer:view"),
+  requirePermission("customers.view"),
   validateParams(customerIdParamSchema),
   customerController.getById,
 );
@@ -84,7 +85,7 @@ router.get(
 // PATCH /customers/:customerId — update customer
 router.patch(
   "/customers/:customerId",
-  requirePermission("customer:update"),
+  requirePermission("customers.manage"),
   validateParams(customerIdParamSchema),
   validateBody(updateCustomerSchema),
   customerController.update,
@@ -93,7 +94,7 @@ router.patch(
 // DELETE /customers/:customerId — delete customer (soft delete)
 router.delete(
   "/customers/:customerId",
-  requirePermission("customer:delete"),
+  requirePermission("customers.manage"),
   validateParams(customerIdParamSchema),
   customerController.remove,
 );
@@ -101,7 +102,7 @@ router.delete(
 // GET /customers/:customerId/orders — get customer order history
 router.get(
   "/customers/:customerId/orders",
-  requirePermission("customer:view"),
+  requirePermission("customers.view"),
   validateParams(customerIdParamSchema),
   customerController.getOrderHistory,
 );
@@ -109,7 +110,7 @@ router.get(
 // GET /customers/:customerId/addresses — list customer addresses
 router.get(
   "/customers/:customerId/addresses",
-  requirePermission("customer:view"),
+  requirePermission("customers.view"),
   validateParams(customerIdParamSchema),
   customerController.listAddresses,
 );
@@ -117,7 +118,7 @@ router.get(
 // POST /customers/:customerId/addresses — create address
 router.post(
   "/customers/:customerId/addresses",
-  requirePermission("customer:create"),
+  requirePermission("customers.manage"),
   validateParams(customerIdParamSchema),
   validateBody(createAddressSchema),
   customerController.createAddress,
@@ -126,7 +127,7 @@ router.post(
 // PATCH /customers/:customerId/addresses/:addressId — update address
 router.patch(
   "/customers/:customerId/addresses/:addressId",
-  requirePermission("customer:update"),
+  requirePermission("customers.manage"),
   validateParams(addressIdParamSchema),
   validateBody(updateAddressSchema),
   customerController.updateAddress,
@@ -135,7 +136,7 @@ router.patch(
 // DELETE /customers/:customerId/addresses/:addressId — delete address
 router.delete(
   "/customers/:customerId/addresses/:addressId",
-  requirePermission("customer:delete"),
+  requirePermission("customers.manage"),
   validateParams(addressIdParamSchema),
   customerController.deleteAddress,
 );
@@ -143,7 +144,7 @@ router.delete(
 // PATCH /customers/:customerId/addresses/:addressId/set-default — set default address
 router.patch(
   "/customers/:customerId/addresses/:addressId/set-default",
-  requirePermission("customer:update"),
+  requirePermission("customers.manage"),
   validateParams(addressIdParamSchema),
   customerController.setDefaultAddress,
 );
@@ -153,14 +154,14 @@ router.patch(
 // POST /coupons/validate — validate a coupon (BEFORE :couponId to avoid route conflict)
 router.post(
   "/coupons/validate",
-  requirePermission("coupon:view"),
+  requirePermission("coupons.manage"),
   couponController.validateCoupon,
 );
 
 // GET /coupons — list coupons (paginated)
 router.get(
   "/coupons",
-  requirePermission("coupon:view"),
+  requirePermission("coupons.manage"),
   validateQuery(couponListQuerySchema),
   couponController.list,
 );
@@ -168,7 +169,7 @@ router.get(
 // POST /coupons — create a new coupon
 router.post(
   "/coupons",
-  requirePermission("coupon:create"),
+  requirePermission("coupons.manage"),
   validateBody(createCouponSchema),
   couponController.create,
 );
@@ -176,7 +177,7 @@ router.post(
 // GET /coupons/:couponId — get coupon by ID
 router.get(
   "/coupons/:couponId",
-  requirePermission("coupon:view"),
+  requirePermission("coupons.manage"),
   validateParams(couponIdParamSchema),
   couponController.getById,
 );
@@ -184,7 +185,7 @@ router.get(
 // PATCH /coupons/:couponId — update coupon
 router.patch(
   "/coupons/:couponId",
-  requirePermission("coupon:update"),
+  requirePermission("coupons.manage"),
   validateParams(couponIdParamSchema),
   validateBody(updateCouponSchema),
   couponController.update,
@@ -193,7 +194,7 @@ router.patch(
 // DELETE /coupons/:couponId — delete coupon
 router.delete(
   "/coupons/:couponId",
-  requirePermission("coupon:delete"),
+  requirePermission("coupons.manage"),
   validateParams(couponIdParamSchema),
   couponController.remove,
 );
@@ -201,7 +202,7 @@ router.delete(
 // GET /coupons/:couponId/usages — get coupon usage history
 router.get(
   "/coupons/:couponId/usages",
-  requirePermission("coupon:view"),
+  requirePermission("coupons.manage"),
   validateParams(couponIdParamSchema),
   couponController.getUsageHistory,
 );
@@ -211,7 +212,7 @@ router.get(
 // GET /orders — list orders (paginated)
 router.get(
   "/orders",
-  requirePermission("order:view"),
+  requirePermission("orders.view"),
   validateQuery(orderListQuerySchema),
   orderController.list,
 );
@@ -219,7 +220,7 @@ router.get(
 // POST /orders — create a new order
 router.post(
   "/orders",
-  requirePermission("order:create"),
+  requirePermission("orders.create"),
   validateBody(createOrderSchema),
   orderController.create,
 );
@@ -227,7 +228,7 @@ router.post(
 // GET /orders/:orderId — get order by ID
 router.get(
   "/orders/:orderId",
-  requirePermission("order:view"),
+  requirePermission("orders.view"),
   validateParams(orderIdParamSchema),
   orderController.getById,
 );
@@ -235,7 +236,7 @@ router.get(
 // PATCH /orders/:orderId/status — update order status
 router.patch(
   "/orders/:orderId/status",
-  requirePermission("order:update"),
+  requirePermission("orders.manage_status"),
   validateParams(orderIdParamSchema),
   validateBody(updateOrderStatusSchema),
   orderController.updateStatus,
@@ -244,7 +245,7 @@ router.patch(
 // POST /orders/:orderId/cancel — cancel order
 router.post(
   "/orders/:orderId/cancel",
-  requirePermission("order:cancel"),
+  requirePermission("orders.manage_status"),
   validateParams(orderIdParamSchema),
   orderController.cancel,
 );
@@ -252,7 +253,7 @@ router.post(
 // POST /orders/:orderId/notes — add note to order
 router.post(
   "/orders/:orderId/notes",
-  requirePermission("order:update"),
+  requirePermission("orders.update"),
   validateParams(orderIdParamSchema),
   validateBody(addOrderNoteSchema),
   orderController.addNote,
@@ -261,7 +262,7 @@ router.post(
 // GET /orders/:orderId/timeline — get order timeline
 router.get(
   "/orders/:orderId/timeline",
-  requirePermission("order:view"),
+  requirePermission("orders.view"),
   validateParams(orderIdParamSchema),
   orderController.getTimeline,
 );
@@ -271,7 +272,7 @@ router.get(
 // GET /orders/:orderId/shipments — list shipments for an order
 router.get(
   "/orders/:orderId/shipments",
-  requirePermission("shipment:view"),
+  requirePermission("shipments.manage"),
   validateParams(orderIdParamSchema),
   shipmentController.listByOrder,
 );
@@ -279,7 +280,7 @@ router.get(
 // POST /orders/:orderId/shipments — create shipment for an order
 router.post(
   "/orders/:orderId/shipments",
-  requirePermission("shipment:create"),
+  requirePermission("shipments.manage"),
   validateParams(orderIdParamSchema),
   validateBody(createShipmentSchema),
   shipmentController.create,
@@ -288,7 +289,7 @@ router.post(
 // GET /shipments/:shipmentId — get shipment by ID
 router.get(
   "/shipments/:shipmentId",
-  requirePermission("shipment:view"),
+  requirePermission("shipments.manage"),
   validateParams(shipmentIdParamSchema),
   shipmentController.getById,
 );
@@ -296,7 +297,7 @@ router.get(
 // PATCH /shipments/:shipmentId — update shipment
 router.patch(
   "/shipments/:shipmentId",
-  requirePermission("shipment:update"),
+  requirePermission("shipments.manage"),
   validateParams(shipmentIdParamSchema),
   validateBody(updateShipmentSchema),
   shipmentController.update,
@@ -305,7 +306,7 @@ router.patch(
 // PATCH /shipments/:shipmentId/status — update shipment status
 router.patch(
   "/shipments/:shipmentId/status",
-  requirePermission("shipment:update"),
+  requirePermission("shipments.manage"),
   validateParams(shipmentIdParamSchema),
   validateBody(updateShipmentStatusSchema),
   shipmentController.updateStatus,
@@ -316,7 +317,7 @@ router.patch(
 // GET /orders/:orderId/payments — list payments for an order
 router.get(
   "/orders/:orderId/payments",
-  requirePermission("payment:view"),
+  requirePermission("payments.view"),
   validateParams(orderIdParamSchema),
   paymentController.listByOrder,
 );
@@ -324,7 +325,7 @@ router.get(
 // POST /orders/:orderId/payments — record a payment
 router.post(
   "/orders/:orderId/payments",
-  requirePermission("payment:create"),
+  requirePermission("payments.view"),
   validateParams(orderIdParamSchema),
   validateBody(recordPaymentSchema),
   paymentController.recordPayment,
@@ -333,7 +334,7 @@ router.post(
 // POST /orders/:orderId/refunds — process a refund
 router.post(
   "/orders/:orderId/refunds",
-  requirePermission("payment:refund"),
+  requirePermission("payments.view"),
   validateParams(orderIdParamSchema),
   validateBody(processRefundSchema),
   paymentController.processRefund,
@@ -344,14 +345,14 @@ router.post(
 // GET /dashboard/overview — get store dashboard overview
 router.get(
   "/dashboard/overview",
-  requirePermission("dashboard:view"),
+  requirePermission("analytics.view"),
   dashboardController.getOverview,
 );
 
 // GET /dashboard/sales-stats — get sales statistics
 router.get(
   "/dashboard/sales-stats",
-  requirePermission("dashboard:view"),
+  requirePermission("analytics.view"),
   validateQuery(salesStatQuerySchema),
   dashboardController.getSalesStats,
 );
@@ -359,7 +360,7 @@ router.get(
 // GET /dashboard/inventory-alerts — get low-stock inventory alerts
 router.get(
   "/dashboard/inventory-alerts",
-  requirePermission("dashboard:view"),
+  requirePermission("analytics.view"),
   validateQuery(dashboardPaginationSchema),
   dashboardController.getInventoryAlerts,
 );

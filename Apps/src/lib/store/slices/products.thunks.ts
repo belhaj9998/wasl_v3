@@ -5,14 +5,29 @@ import type {
   UpdateProductPayload,
 } from "@/lib/api/services/product.service";
 import type { PaginationParams, ProductStatus } from "@/types";
+import type { RootState } from "../store";
+import { shouldUseCachedData } from "../cache";
+import {
+  optimisticDeleteProduct,
+  optimisticProductStatusChange,
+  rollbackProducts,
+} from "./products.slice";
 
 export const fetchProducts = createAsyncThunk(
   "products/fetchAll",
   async (
     { storeId, params }: { storeId: number; params?: PaginationParams },
-    { rejectWithValue },
+    { rejectWithValue, getState },
   ) => {
     try {
+      const state = getState() as RootState;
+      const { listCache } = state.products;
+
+      // Return cached data if valid and params match
+      if (shouldUseCachedData(listCache, params)) {
+        return { data: listCache!.data.data, meta: listCache!.data.meta };
+      }
+
       const response = await productService.getAll(storeId, params);
       return response;
     } catch (error: unknown) {
@@ -82,12 +97,14 @@ export const deleteProduct = createAsyncThunk(
   "products/delete",
   async (
     { storeId, productId }: { storeId: number; productId: number },
-    { rejectWithValue },
+    { rejectWithValue, dispatch },
   ) => {
+    dispatch(optimisticDeleteProduct(productId));
     try {
       await productService.delete(storeId, productId);
       return productId;
     } catch (error: unknown) {
+      dispatch(rollbackProducts());
       const message =
         error instanceof Error ? error.message : "Failed to delete product";
       return rejectWithValue(message);
@@ -103,8 +120,9 @@ export const changeProductStatus = createAsyncThunk(
       productId,
       status,
     }: { storeId: number; productId: number; status: ProductStatus },
-    { rejectWithValue },
+    { rejectWithValue, dispatch },
   ) => {
+    dispatch(optimisticProductStatusChange({ id: productId, status }));
     try {
       const response = await productService.changeStatus(
         storeId,
@@ -113,6 +131,7 @@ export const changeProductStatus = createAsyncThunk(
       );
       return response.data;
     } catch (error: unknown) {
+      dispatch(rollbackProducts());
       const message =
         error instanceof Error
           ? error.message

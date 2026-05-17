@@ -116,4 +116,20 @@
   [dir="ltr"] {
     text-align: left;
   }
+
+  /*
+   * Global focus-visible indicator for keyboard navigation.
+   * Ensures all interactive elements show a visible focus ring
+   * with ≥ 3:1 contrast ratio against surrounding backgrounds.
+   * Uses the --ring CSS variable (primary blue) which provides
+   * ~4.5:1 contrast on light and ~4:1 on dark backgrounds.
+   *
+   * shadcn/ui components already apply focus-visible:outline-none
+   * via Tailwind utilities, so they use their own ring styles
+   * (box-shadow based) and this global outline won't conflict.
+   */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
 }

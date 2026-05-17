@@ -1,5 +1,7 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { Category } from "@/types";
+import type { CacheEntry } from "../cache";
+import { createCacheEntry } from "../cache";
 import {
   fetchCategories,
   fetchCategoryById,
@@ -13,12 +15,16 @@ export interface CategoriesState {
   items: Category[];
   loading: boolean;
   error: string | null;
+  _rollbackSnapshot: Category[] | null;
+  listCache: CacheEntry<{ data: Category[] }> | null;
 }
 
 const initialState: CategoriesState = {
   items: [],
   loading: false,
   error: null,
+  _rollbackSnapshot: null,
+  listCache: null,
 };
 
 /**
@@ -58,6 +64,29 @@ const categoriesSlice = createSlice({
   initialState,
   reducers: {
     reset: () => initialState,
+    invalidateListCache(state) {
+      state.listCache = null;
+    },
+    optimisticDelete(state, action: PayloadAction<number>) {
+      state._rollbackSnapshot = state.items;
+      state.items = removeCategoryFromTree(state.items, action.payload);
+    },
+    optimisticStatusChange(
+      state,
+      action: PayloadAction<{ id: number; is_active: boolean }>,
+    ) {
+      state._rollbackSnapshot = state.items;
+      state.items = updateCategoryInTree(state.items, {
+        id: action.payload.id,
+        is_active: action.payload.is_active,
+      } as Category);
+    },
+    rollback(state) {
+      if (state._rollbackSnapshot) {
+        state.items = state._rollbackSnapshot;
+        state._rollbackSnapshot = null;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -69,6 +98,10 @@ const categoriesSlice = createSlice({
       .addCase(fetchCategories.fulfilled, (state, action) => {
         state.loading = false;
         state.items = action.payload.data;
+        state.listCache = createCacheEntry(
+          { data: action.payload.data },
+          action.meta.arg.params,
+        );
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.loading = false;
@@ -148,5 +181,11 @@ const categoriesSlice = createSlice({
   },
 });
 
-export const { reset: resetCategories } = categoriesSlice.actions;
+export const {
+  reset: resetCategories,
+  invalidateListCache: invalidateCategoriesListCache,
+  optimisticDelete: optimisticDeleteCategory,
+  optimisticStatusChange: optimisticCategoryStatusChange,
+  rollback: rollbackCategories,
+} = categoriesSlice.actions;
 export default categoriesSlice.reducer;

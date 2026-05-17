@@ -4,7 +4,7 @@
  */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:6200/api";
 
 export const API_ENDPOINTS = {
   // Auth
@@ -44,6 +44,13 @@ export const API_ENDPOINTS = {
     SETTINGS: (storeId: number) => `/stores/${storeId}/settings`,
     MEMBERSHIPS: (storeId: number) => `/stores/${storeId}/memberships`,
     DASHBOARD: (storeId: number) => `/stores/${storeId}/dashboard`,
+    NOTIFICATIONS: (storeId: number) => `/stores/${storeId}/notifications`,
+    NOTIFICATIONS_READ: (storeId: number) =>
+      `/stores/${storeId}/notifications/read`,
+    NOTIFICATIONS_READ_ALL: (storeId: number) =>
+      `/stores/${storeId}/notifications/read-all`,
+    NOTIFICATIONS_SETTINGS: (storeId: number) =>
+      `/stores/${storeId}/notifications/settings`,
   },
 
   // Storefront (requires domain in path)

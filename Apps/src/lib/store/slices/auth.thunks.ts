@@ -2,7 +2,7 @@
  * Auth Thunks
  * Async thunks for authentication, profile, and store context management.
  *
- * Requirements: 1.1, 1.2, 1.3, 1.9, 1.10, 1.11, 6.1, 6.2, 6.6, 6.7, 27.2, 27.3
+ * Requirements: 1.1, 1.2, 1.3, 1.9, 1.10, 1.11, 4.5, 6.1, 6.2, 6.6, 6.7, 27.2, 27.3
  */
 
 import { createAsyncThunk } from "@reduxjs/toolkit";
@@ -10,13 +10,7 @@ import { authService } from "@/lib/api/services";
 import { apiClient, setAccessToken } from "@/lib/api/client";
 import { API_ENDPOINTS, STORAGE_KEYS } from "@/lib/constants";
 import type { LoginPayload, RegisterPayload, User, ApiResponse } from "@/types";
-import { resetProducts } from "./products.slice";
-import { resetOrders } from "./orders.slice";
-import { resetCategories } from "./categories.slice";
-import { resetCustomers } from "./customers.slice";
-import { resetCoupons } from "./coupons.slice";
-import { resetInventory } from "./inventory.slice";
-import { resetMembers } from "./members.slice";
+import { resetStoreData } from "../resetStoreData";
 
 // ---------------------------------------------------------------------------
 // Login Thunk
@@ -111,14 +105,8 @@ export const setCurrentStoreThunk = createAsyncThunk<
   "auth/setCurrentStore",
   async ({ storeId }, { dispatch, rejectWithValue }) => {
     try {
-      // Reset all store-scoped slices before switching context
-      dispatch(resetProducts());
-      dispatch(resetOrders());
-      dispatch(resetCategories());
-      dispatch(resetCustomers());
-      dispatch(resetCoupons());
-      dispatch(resetInventory());
-      dispatch(resetMembers());
+      // Reset all store-scoped slices, cancel pending requests, and invalidate caches
+      await dispatch(resetStoreData()).unwrap();
 
       // Fetch the user's membership/permissions for this store
       const response = await apiClient<ApiResponse<{ permissions: string[] }>>(

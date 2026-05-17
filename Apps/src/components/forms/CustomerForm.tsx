@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { FormField } from "@/components/forms/FormField";
 import { FormError } from "@/components/forms/FormError";
@@ -45,6 +46,7 @@ export function CustomerForm({
 }: CustomerFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const t = useTranslations("customers");
 
   const { control, handleSubmit, reset, setError } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
@@ -96,14 +98,14 @@ export function CustomerForm({
           const message = apiErr.message || "";
           if (message.toLowerCase().includes("email")) {
             setError("email", {
-              message: "هذا البريد الإلكتروني مستخدم بالفعل",
+              message: t("emailAlreadyUsed"),
             });
           } else if (message.toLowerCase().includes("phone")) {
             setError("phone", {
-              message: "رقم الهاتف مستخدم بالفعل",
+              message: t("phoneAlreadyUsed"),
             });
           } else {
-            setServerError("البريد الإلكتروني أو رقم الهاتف مستخدم بالفعل");
+            setServerError(t("emailOrPhoneAlreadyUsed"));
           }
         } else if (apiErr.status === 422 && apiErr.errors) {
           // Map validation errors to fields
@@ -116,13 +118,10 @@ export function CustomerForm({
             }
           }
         } else {
-          setServerError(apiErr.message || "حدث خطأ أثناء حفظ بيانات العميل");
+          setServerError(apiErr.message || t("saveFailed"));
         }
       } else {
-        const message =
-          err instanceof Error
-            ? err.message
-            : "حدث خطأ أثناء حفظ بيانات العميل";
+        const message = err instanceof Error ? err.message : t("saveFailed");
         setServerError(message);
       }
     } finally {

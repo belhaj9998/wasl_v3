@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import {
   Dialog,
   DialogContent,
@@ -40,17 +41,18 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "تأكيد",
-  cancelLabel = "إلغاء",
+  confirmLabel,
+  cancelLabel,
   onConfirm,
   destructive = false,
   loading = false,
 }: ConfirmDialogProps) {
+  const t = useTranslations("common");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{title || "تأكيد"}</DialogTitle>
+          <DialogTitle>{title || t("confirm")}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
         <DialogFooter>
@@ -59,14 +61,14 @@ export function ConfirmDialog({
             onClick={() => onOpenChange(false)}
             disabled={loading}
           >
-            {cancelLabel}
+            {cancelLabel || t("cancel")}
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "جاري..." : confirmLabel}
+            {loading ? t("loading") : confirmLabel || t("confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

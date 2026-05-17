@@ -47,6 +47,7 @@ export default function StorefrontAddressesPage() {
   const params = useParams();
   const domain = params.domain as string;
   const t = useTranslations("storefront");
+  const tA11y = useTranslations("accessibility.buttons");
 
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [loading, setLoading] = useState(true);
@@ -236,6 +237,7 @@ export default function StorefrontAddressesPage() {
                         className="h-8 w-8"
                         onClick={() => handleSetDefault(address.id)}
                         title={t("setDefault")}
+                        aria-label={tA11y("setDefaultAddress")}
                       >
                         <Star className="h-4 w-4" />
                       </Button>
@@ -245,6 +247,7 @@ export default function StorefrontAddressesPage() {
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => openEditDialog(address)}
+                      aria-label={tA11y("editAddress")}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -253,6 +256,7 @@ export default function StorefrontAddressesPage() {
                       size="icon"
                       className="h-8 w-8 text-destructive"
                       onClick={() => handleDelete(address.id)}
+                      aria-label={tA11y("deleteAddress")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

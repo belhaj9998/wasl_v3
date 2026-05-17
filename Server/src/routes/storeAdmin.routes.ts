@@ -4,6 +4,7 @@ import {
   resolveStoreContext,
   requirePermission,
 } from "../middlewares/auth.Middleware";
+
 import {
   validateBody,
   validateQuery,
@@ -23,6 +24,7 @@ import {
   roleIdParamSchema,
   memberListQuerySchema,
 } from "../validators/storeAdmin.validators";
+import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as storeSettingsController from "../controllers/store-admin/storeSettings.Controller";
 import * as storeMemberController from "../controllers/store-admin/storeMember.Controller";
 import * as storeRoleController from "../controllers/store-admin/storeRole.Controller";
@@ -30,21 +32,20 @@ import * as storeRoleController from "../controllers/store-admin/storeRole.Contr
 const router = Router({ mergeParams: true });
 
 // Apply verifyToken and resolveStoreContext to ALL store-admin routes
-router.use(verifyToken, resolveStoreContext);
+router.use(verifyToken, resolveStoreContext, verifyStoreSubscriptionAccess);
 
 // ========== Settings Routes ==========
 
 // GET /settings — retrieve store settings
 router.get(
   "/settings",
-  requirePermission("store:view"),
+  requirePermission("settings.manage"),
   storeSettingsController.getSettings,
 );
-
 // PATCH /settings/general — update general settings
 router.patch(
   "/settings/general",
-  requirePermission("store:update"),
+  requirePermission("settings.manage"),
   validateBody(updateGeneralSchema),
   storeSettingsController.updateGeneral,
 );
@@ -52,7 +53,7 @@ router.patch(
 // PATCH /settings/branding — update branding settings
 router.patch(
   "/settings/branding",
-  requirePermission("store:update"),
+  requirePermission("settings.manage"),
   validateBody(updateBrandingSchema),
   storeSettingsController.updateBranding,
 );
@@ -60,7 +61,7 @@ router.patch(
 // PATCH /settings/seo — update SEO settings
 router.patch(
   "/settings/seo",
-  requirePermission("store:update"),
+  requirePermission("settings.manage"),
   validateBody(updateSeoSchema),
   storeSettingsController.updateSeo,
 );
@@ -68,7 +69,7 @@ router.patch(
 // PATCH /settings/contact — update contact information
 router.patch(
   "/settings/contact",
-  requirePermission("store:update"),
+  requirePermission("settings.manage"),
   validateBody(updateContactSchema),
   storeSettingsController.updateContact,
 );
@@ -78,7 +79,7 @@ router.patch(
 // GET /members — list store members (paginated)
 router.get(
   "/members",
-  requirePermission("member:view"),
+  requirePermission("staff.manage"),
   validateQuery(memberListQuerySchema),
   storeMemberController.list,
 );
@@ -86,7 +87,7 @@ router.get(
 // POST /members/invite — invite a new member
 router.post(
   "/members/invite",
-  requirePermission("member:invite"),
+  requirePermission("staff.manage"),
   validateBody(inviteMemberSchema),
   storeMemberController.invite,
 );
@@ -94,7 +95,7 @@ router.post(
 // GET /members/:memberId — get member details
 router.get(
   "/members/:memberId",
-  requirePermission("member:view"),
+  requirePermission("staff.manage"),
   validateParams(memberIdParamSchema),
   storeMemberController.getById,
 );
@@ -102,7 +103,7 @@ router.get(
 // PATCH /members/:memberId/role — update member's role
 router.patch(
   "/members/:memberId/role",
-  requirePermission("member:update"),
+  requirePermission("staff.manage"),
   validateParams(memberIdParamSchema),
   validateBody(updateMemberRoleSchema),
   storeMemberController.updateRole,
@@ -111,7 +112,7 @@ router.patch(
 // DELETE /members/:memberId — remove member from store
 router.delete(
   "/members/:memberId",
-  requirePermission("member:remove"),
+  requirePermission("staff.manage"),
   validateParams(memberIdParamSchema),
   storeMemberController.remove,
 );
@@ -119,7 +120,7 @@ router.delete(
 // POST /members/:memberId/resend-invite — resend invitation
 router.post(
   "/members/:memberId/resend-invite",
-  requirePermission("member:invite"),
+  requirePermission("staff.manage"),
   validateParams(memberIdParamSchema),
   storeMemberController.resendInvitation,
 );
@@ -127,12 +128,16 @@ router.post(
 // ========== Role Routes ==========
 
 // GET /roles — list all store roles
-router.get("/roles", requirePermission("role:view"), storeRoleController.list);
+router.get(
+  "/roles",
+  requirePermission("staff.manage"),
+  storeRoleController.list,
+);
 
 // POST /roles — create a new role
 router.post(
   "/roles",
-  requirePermission("role:create"),
+  requirePermission("staff.manage"),
   validateBody(createRoleSchema),
   storeRoleController.create,
 );
@@ -140,7 +145,7 @@ router.post(
 // GET /roles/:roleId — get role details
 router.get(
   "/roles/:roleId",
-  requirePermission("role:view"),
+  requirePermission("staff.manage"),
   validateParams(roleIdParamSchema),
   storeRoleController.getById,
 );
@@ -148,7 +153,7 @@ router.get(
 // PATCH /roles/:roleId — update role
 router.patch(
   "/roles/:roleId",
-  requirePermission("role:update"),
+  requirePermission("staff.manage"),
   validateParams(roleIdParamSchema),
   validateBody(updateRoleSchema),
   storeRoleController.update,
@@ -157,7 +162,7 @@ router.patch(
 // DELETE /roles/:roleId — delete role
 router.delete(
   "/roles/:roleId",
-  requirePermission("role:delete"),
+  requirePermission("staff.manage"),
   validateParams(roleIdParamSchema),
   storeRoleController.remove,
 );
@@ -165,7 +170,7 @@ router.delete(
 // PUT /roles/:roleId/permissions — replace role permissions
 router.put(
   "/roles/:roleId/permissions",
-  requirePermission("role:update"),
+  requirePermission("staff.manage"),
   validateParams(roleIdParamSchema),
   validateBody(updateRolePermissionsSchema),
   storeRoleController.updatePermissions,

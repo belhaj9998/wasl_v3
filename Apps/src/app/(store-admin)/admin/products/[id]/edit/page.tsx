@@ -2,16 +2,18 @@
 
 /**
  * Product Edit Page
- * Renders the ProductForm in edit mode with existing product data.
+ * Renders the ProductForm in edit mode with tabbed interface.
  * Supports status transitions: DRAFT→ACTIVE, ACTIVE→ARCHIVED, ARCHIVED→DRAFT.
+ * Tabs preserve data when switching between them.
  *
- * Requirements: 7.2, 7.5, 7.6, 21.1, 21.2
+ * Requirements: 9.4, 9.5, 6.6
  */
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowRight, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { ProductForm } from "@/components/products/ProductForm";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,9 @@ export default function ProductEditPage() {
   const router = useRouter();
   const params = useParams();
   const { currentStoreId } = useStore();
+  const t = useTranslations("products");
+  const tCommon = useTranslations("common");
+  const tSuccess = useTranslations("success");
 
   const productId = Number(params.id);
 
@@ -75,7 +80,7 @@ export default function ProductEditPage() {
       updateProduct({ storeId: currentStoreId, productId, payload }),
     ).unwrap();
 
-    toast.success("تم تحديث المنتج بنجاح");
+    toast.success(tSuccess("product.updated"));
   };
 
   // Handle status change
@@ -104,15 +109,15 @@ export default function ProductEditPage() {
         currentStoreId,
         productId,
       );
-      toast.success("تم نسخ المنتج بنجاح");
+      toast.success(tSuccess("product.duplicated"));
       router.push(ROUTES.STORE_ADMIN.PRODUCT_EDIT(response.data.id));
     } catch (err: unknown) {
-      const message = typeof err === "string" ? err : "فشل نسخ المنتج";
+      const message = typeof err === "string" ? err : t("duplicateFailed");
       toast.error(message);
     } finally {
       setDuplicating(false);
     }
-  }, [currentStoreId, productId, router]);
+  }, [currentStoreId, productId, router, tSuccess, t]);
 
   return (
     <div className="space-y-6">
@@ -122,15 +127,17 @@ export default function ProductEditPage() {
           variant="ghost"
           size="icon"
           onClick={() => router.push(ROUTES.STORE_ADMIN.PRODUCTS)}
+          aria-label={t("backToProducts")}
         >
           <ArrowRight className="h-5 w-5" />
-          <span className="sr-only">العودة للمنتجات</span>
         </Button>
         <div className="flex-1">
-          <h2 className="text-2xl font-bold tracking-tight">
-            {loading ? "جاري التحميل..." : `تعديل: ${product?.name || ""}`}
-          </h2>
-          <p className="text-muted-foreground">تعديل بيانات المنتج</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {loading
+              ? tCommon("loading")
+              : t("editTitle", { name: product?.name || "" })}
+          </h1>
+          <p className="text-muted-foreground">{t("editDescription")}</p>
         </div>
 
         {/* Duplicate Button */}
@@ -141,7 +148,7 @@ export default function ProductEditPage() {
             disabled={duplicating || loading}
           >
             <Copy className="me-2 h-4 w-4" />
-            نسخ المنتج
+            {t("duplicateButton")}
           </Button>
         </PermissionGate>
       </div>

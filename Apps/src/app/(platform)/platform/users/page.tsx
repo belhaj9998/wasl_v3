@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { type ColumnDef } from "@tanstack/react-table";
 import {
   Search,
@@ -73,6 +74,8 @@ const ROLE_LABELS: Record<SystemRole, string> = {
 export default function PlatformUsersPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
+  const tA11y = useTranslations("accessibility.buttons");
+  const tCommon = useTranslations("common");
 
   const {
     items: users,
@@ -336,9 +339,13 @@ export default function PlatformUsersPage() {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  aria-label={tCommon("actions")}
+                >
                   <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">إجراءات</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">

@@ -6,14 +6,28 @@ import type {
   UpdateCategoryPayload,
 } from "@/lib/api/services/category.service";
 import type { PaginationParams } from "@/types";
+import type { RootState } from "../store";
+import { shouldUseCachedData } from "../cache";
+import {
+  optimisticDeleteCategory,
+  rollbackCategories,
+} from "./categories.slice";
 
 export const fetchCategories = createAsyncThunk(
   "categories/fetchAll",
   async (
     { storeId, params }: { storeId: number; params?: PaginationParams },
-    { rejectWithValue },
+    { rejectWithValue, getState },
   ) => {
     try {
+      const state = getState() as RootState;
+      const { listCache } = state.categories;
+
+      // Return cached data if valid and params match
+      if (shouldUseCachedData(listCache, params)) {
+        return { data: listCache!.data.data };
+      }
+
       const response = await categoryService.getAll(storeId, params);
       return response;
     } catch (error: unknown) {
@@ -87,12 +101,14 @@ export const deleteCategory = createAsyncThunk(
   "categories/delete",
   async (
     { storeId, categoryId }: { storeId: number; categoryId: number },
-    { rejectWithValue },
+    { dispatch, rejectWithValue },
   ) => {
+    dispatch(optimisticDeleteCategory(categoryId));
     try {
       await categoryService.delete(storeId, categoryId);
       return categoryId;
     } catch (error: unknown) {
+      dispatch(rollbackCategories());
       const message =
         error instanceof Error ? error.message : "Failed to delete category";
       return rejectWithValue(message);

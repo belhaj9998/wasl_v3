@@ -337,7 +337,7 @@ export default function Home() {
               </p>
             </div>
             <div>
-              <h4 className="font-semibold">المنتج</h4>
+              <h3 className="font-semibold">المنتج</h3>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
                 <li>
                   <a
@@ -366,7 +366,7 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold">الدعم</h4>
+              <h3 className="font-semibold">الدعم</h3>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
                 <li>
                   <a
@@ -395,7 +395,7 @@ export default function Home() {
               </ul>
             </div>
             <div>
-              <h4 className="font-semibold">قانوني</h4>
+              <h3 className="font-semibold">قانوني</h3>
               <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
                 <li>
                   <a

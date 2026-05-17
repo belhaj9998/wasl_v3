@@ -5,14 +5,25 @@ import type {
   UpdateCustomerPayload,
 } from "@/lib/api/services/customer.service";
 import type { PaginationParams } from "@/types";
+import type { RootState } from "../store";
+import { shouldUseCachedData } from "../cache";
+import { optimisticDeleteCustomer, rollbackCustomers } from "./customers.slice";
 
 export const fetchCustomers = createAsyncThunk(
   "customers/fetchAll",
   async (
     { storeId, params }: { storeId: number; params?: PaginationParams },
-    { rejectWithValue },
+    { rejectWithValue, getState },
   ) => {
     try {
+      const state = getState() as RootState;
+      const { listCache } = state.customers;
+
+      // Return cached data if valid and params match
+      if (shouldUseCachedData(listCache, params)) {
+        return { data: listCache!.data.data, meta: listCache!.data.meta };
+      }
+
       const response = await customerService.getAll(storeId, params);
       return response;
     } catch (error: unknown) {
@@ -86,12 +97,14 @@ export const deleteCustomer = createAsyncThunk(
   "customers/delete",
   async (
     { storeId, customerId }: { storeId: number; customerId: number },
-    { rejectWithValue },
+    { dispatch, rejectWithValue },
   ) => {
+    dispatch(optimisticDeleteCustomer(customerId));
     try {
       await customerService.delete(storeId, customerId);
       return customerId;
     } catch (error: unknown) {
+      dispatch(rollbackCustomers());
       const message =
         error instanceof Error ? error.message : "Failed to delete customer";
       return rejectWithValue(message);

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Order Validation Schemas
- * Validates: Requirements 9.4
+ * Validates: Requirements 9.4, 9.7
  */
 
 const shippingAddressSchema = z.object({
@@ -18,10 +18,10 @@ const shippingAddressSchema = z.object({
     .string()
     .min(1, "Street address is required")
     .max(300, "Street address must not exceed 300 characters"),
-  street_line_2: z.string().max(300).nullish(),
-  state: z.string().nullish(),
-  postal_code: z.string().nullish(),
-  country: z.string().nullish(),
+  street_line_2: z.string().max(300).optional().default(""),
+  state: z.string().optional().default(""),
+  postal_code: z.string().optional().default(""),
+  country: z.string().optional().default(""),
 });
 
 const orderItemSchema = z.object({
@@ -31,7 +31,7 @@ const orderItemSchema = z.object({
     .number()
     .int("Quantity must be a whole number")
     .min(1, "Quantity must be at least 1")
-    .max(9999, "Quantity must not exceed 9999"),
+    .max(100, "Quantity must not exceed 100"),
 });
 
 export const manualOrderSchema = z.object({
@@ -40,16 +40,18 @@ export const manualOrderSchema = z.object({
     .min(1, "At least 1 item is required")
     .max(100, "Maximum 100 items allowed"),
   shipping_address: shippingAddressSchema,
-  customer_name: z.string().min(1, "Customer name is required").optional(),
-  customer_phone: z.string().optional(),
-  customer_email: z.string().email().nullish(),
+  customer_id: z.number().int().positive().optional(),
+  customer_name: z.string().optional().default(""),
+  customer_phone: z.string().optional().default(""),
+  customer_email: z.string().email().optional().or(z.literal("")),
   payment_method: z
-    .enum(["CASH_ON_DELIVERY", "CARD", "BANK_TRANSFER", "WALLET", "MANUAL"])
-    .optional(),
-  notes_from_customer: z.string().max(1000).nullish(),
+    .enum(["CASH_ON_DELIVERY", "BANK_TRANSFER", "MANUAL"])
+    .default("CASH_ON_DELIVERY"),
+  notes_from_customer: z.string().max(1000).optional().default(""),
   source: z
     .enum(["ADMIN", "MANUAL", "INSTAGRAM", "FACEBOOK", "TIKTOK"])
-    .optional(),
+    .optional()
+    .default("MANUAL"),
 });
 
 export type ManualOrderFormData = z.infer<typeof manualOrderSchema>;

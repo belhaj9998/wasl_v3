@@ -13,6 +13,7 @@ export interface InventoryState {
   movements: InventoryMovement[];
   lowStock: InventoryItem[];
   meta: PaginationMeta | null;
+  movementsMeta: PaginationMeta | null;
   loading: boolean;
   error: string | null;
 }
@@ -22,6 +23,7 @@ const initialState: InventoryState = {
   movements: [],
   lowStock: [],
   meta: null,
+  movementsMeta: null,
   loading: false,
   error: null,
 };
@@ -69,6 +71,7 @@ const inventorySlice = createSlice({
       .addCase(fetchInventoryMovements.fulfilled, (state, action) => {
         state.loading = false;
         state.movements = action.payload.data;
+        state.movementsMeta = action.payload.meta;
       })
       .addCase(fetchInventoryMovements.rejected, (state, action) => {
         state.loading = false;

@@ -12,14 +12,28 @@ import { useEffect, useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
+import Image from "next/image";
 import { toast } from "sonner";
-import { Settings, Palette, Search, Phone, Plus, Trash2 } from "lucide-react";
+import {
+  Settings,
+  Palette,
+  Search,
+  Phone,
+  Plus,
+  Trash2,
+  Bell,
+  Volume2,
+} from "lucide-react";
 
 import { useStore } from "@/hooks";
 import {
   storeSettingsService,
   type StoreSettings,
 } from "@/lib/api/services/storeSettings.service";
+import {
+  notificationSettingsService,
+  type NotificationSettings,
+} from "@/lib/api/services/notificationSettings.service";
 import {
   generalSettingsSchema,
   seoSettingsSchema,
@@ -41,6 +55,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { FormField, FormSummaryError, SubmitButton } from "@/components/forms";
 import { mapServerErrorsToForm } from "@/components/forms";
 import type { ApiError } from "@/types/api.types";
@@ -208,11 +224,13 @@ function BrandingSettingsForm({
         <Label>{t("logo")}</Label>
         <div className="flex items-center gap-4">
           {logoUrl && (
-            <div className="h-16 w-16 rounded-lg border bg-muted flex items-center justify-center overflow-hidden">
-              <img
+            <div className="h-16 w-16 rounded-lg border bg-muted flex items-center justify-center overflow-hidden relative">
+              <Image
                 src={logoUrl}
                 alt="Store logo"
-                className="h-full w-full object-contain"
+                fill
+                sizes="64px"
+                className="object-contain"
               />
             </div>
           )}
@@ -244,11 +262,13 @@ function BrandingSettingsForm({
         <Label>{t("favicon")}</Label>
         <div className="flex items-center gap-4">
           {faviconUrl && (
-            <div className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden">
-              <img
+            <div className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden relative">
+              <Image
                 src={faviconUrl}
                 alt="Store favicon"
-                className="h-full w-full object-contain"
+                fill
+                sizes="40px"
+                className="object-contain"
               />
             </div>
           )}
@@ -543,6 +563,241 @@ function ContactSettingsForm({
   );
 }
 
+// ─── Notification Settings Tab ───────────────────────────────────────────────
+
+interface NotificationSettingsTabProps {
+  storeId: number;
+}
+
+function NotificationSettingsTab({ storeId }: NotificationSettingsTabProps) {
+  const t = useTranslations("notificationSettings");
+  const tSuccess = useTranslations("success.store");
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [settings, setSettings] = useState<NotificationSettings | null>(null);
+
+  // Local state for toggles
+  const [newOrder, setNewOrder] = useState(true);
+  const [orderStatusChange, setOrderStatusChange] = useState(true);
+  const [lowStock, setLowStock] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await notificationSettingsService.getSettings(storeId);
+      const data = response.data;
+      setSettings(data);
+      setNewOrder(data.newOrder);
+      setOrderStatusChange(data.orderStatusChange);
+      setLowStock(data.lowStock);
+      setSoundEnabled(data.soundEnabled);
+    } catch {
+      setError(t("loadError"));
+    } finally {
+      setLoading(false);
+    }
+  }, [storeId, t]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, [fetchSettings]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        newOrder,
+        orderStatusChange,
+        lowStock,
+        soundEnabled,
+      };
+      const response = await notificationSettingsService.updateSettings(
+        storeId,
+        payload,
+      );
+      setSettings(response.data);
+      toast.success(tSuccess("settingsUpdated"));
+    } catch {
+      toast.error(t("saveError"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const hasChanges =
+    settings !== null &&
+    (newOrder !== settings.newOrder ||
+      orderStatusChange !== settings.orderStatusChange ||
+      lowStock !== settings.lowStock ||
+      soundEnabled !== settings.soundEnabled);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-6 w-48" />
+          <Skeleton className="h-4 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Skeleton className="h-5 w-32" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+              <Skeleton className="h-6 w-11 rounded-full" />
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <Bell className="h-12 w-12 mb-4" />
+          <p className="text-lg font-medium mb-2">{error}</p>
+          <Button variant="link" onClick={fetchSettings}>
+            {t("retry")}
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Notification Types */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            {t("notificationTypes")}
+          </CardTitle>
+          <CardDescription>{t("notificationTypesDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* New Order */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="new-order-setting"
+                className="text-base font-medium"
+              >
+                {t("newOrder")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t("newOrderDescription")}
+              </p>
+            </div>
+            <Switch
+              id="new-order-setting"
+              checked={newOrder}
+              onCheckedChange={setNewOrder}
+              aria-label={t("newOrder")}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Order Status Change */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="order-status-change-setting"
+                className="text-base font-medium"
+              >
+                {t("orderStatusChange")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t("orderStatusChangeDescription")}
+              </p>
+            </div>
+            <Switch
+              id="order-status-change-setting"
+              checked={orderStatusChange}
+              onCheckedChange={setOrderStatusChange}
+              aria-label={t("orderStatusChange")}
+            />
+          </div>
+
+          <Separator />
+
+          {/* Low Stock */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="low-stock-setting"
+                className="text-base font-medium"
+              >
+                {t("lowStock")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t("lowStockDescription")}
+              </p>
+            </div>
+            <Switch
+              id="low-stock-setting"
+              checked={lowStock}
+              onCheckedChange={setLowStock}
+              aria-label={t("lowStock")}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Sound Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Volume2 className="h-5 w-5" />
+            {t("soundSettings")}
+          </CardTitle>
+          <CardDescription>{t("soundSettingsDescription")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label
+                htmlFor="sound-enabled-setting"
+                className="text-base font-medium"
+              >
+                {t("soundEnabled")}
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                {t("soundEnabledDescription")}
+              </p>
+            </div>
+            <Switch
+              id="sound-enabled-setting"
+              checked={soundEnabled}
+              onCheckedChange={setSoundEnabled}
+              aria-label={t("soundEnabled")}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <SubmitButton
+          isSubmitting={saving}
+          disabled={!hasChanges}
+          onClick={handleSave}
+        >
+          {t("save")}
+        </SubmitButton>
+      </div>
+    </div>
+  );
+}
+
 // ─── Loading Skeleton ────────────────────────────────────────────────────────
 
 function SettingsLoadingSkeleton() {
@@ -613,7 +868,7 @@ export default function StoreSettingsPage() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 max-w-lg">
+        <TabsList className="grid w-full grid-cols-5 max-w-2xl">
           <TabsTrigger value="general" className="gap-1.5">
             <Settings className="h-4 w-4 hidden sm:inline-block" />
             {t("general")}
@@ -629,6 +884,10 @@ export default function StoreSettingsPage() {
           <TabsTrigger value="contact" className="gap-1.5">
             <Phone className="h-4 w-4 hidden sm:inline-block" />
             {t("contact")}
+          </TabsTrigger>
+          <TabsTrigger value="notifications" className="gap-1.5">
+            <Bell className="h-4 w-4 hidden sm:inline-block" />
+            {t("notifications")}
           </TabsTrigger>
         </TabsList>
 
@@ -731,6 +990,11 @@ export default function StoreSettingsPage() {
               />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Notification Settings */}
+        <TabsContent value="notifications">
+          <NotificationSettingsTab storeId={currentStoreId!} />
         </TabsContent>
       </Tabs>
     </div>

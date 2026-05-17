@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { ShoppingCart, Minus, Plus, Trash2, Tag, X } from "lucide-react";
 import { toast } from "sonner";
@@ -43,6 +44,7 @@ export default function StorefrontCartPage() {
   const params = useParams();
   const domain = params.domain as string;
   const t = useTranslations("storefront");
+  const tA11y = useTranslations("accessibility.buttons");
   const dispatch = useAppDispatch();
 
   const items = useAppSelector(selectCartItems);
@@ -175,12 +177,14 @@ export default function StorefrontCartPage() {
               <CardContent className="p-4">
                 <div className="flex gap-4">
                   {/* Product Image */}
-                  <div className="w-20 h-20 bg-muted rounded-md overflow-hidden flex-shrink-0">
+                  <div className="w-20 h-20 bg-muted rounded-md overflow-hidden flex-shrink-0 relative">
                     {item.product.media && item.product.media.length > 0 ? (
-                      <img
+                      <Image
                         src={item.product.media[0].url}
                         alt={item.product.name}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="80px"
+                        className="object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
@@ -191,9 +195,9 @@ export default function StorefrontCartPage() {
 
                   {/* Item Details */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-foreground truncate">
+                    <h2 className="text-sm font-medium text-foreground truncate">
                       {item.product.name}
-                    </h3>
+                    </h2>
                     <p className="text-xs text-muted-foreground">
                       {item.variant.title}
                     </p>
@@ -212,6 +216,7 @@ export default function StorefrontCartPage() {
                         handleUpdateQuantity(item.id, item.quantity - 1)
                       }
                       disabled={loading}
+                      aria-label={tA11y("decreaseQuantity")}
                     >
                       <Minus className="h-3 w-3" />
                     </Button>
@@ -226,6 +231,7 @@ export default function StorefrontCartPage() {
                         handleUpdateQuantity(item.id, item.quantity + 1)
                       }
                       disabled={loading}
+                      aria-label={tA11y("increaseQuantity")}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -242,6 +248,7 @@ export default function StorefrontCartPage() {
                       className="h-8 w-8 text-destructive"
                       onClick={() => handleRemoveItem(item.id)}
                       disabled={loading}
+                      aria-label={tA11y("removeItem")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -274,6 +281,7 @@ export default function StorefrontCartPage() {
                     className="h-6 w-6"
                     onClick={handleRemoveCoupon}
                     disabled={couponLoading}
+                    aria-label={tA11y("removeCoupon")}
                   >
                     <X className="h-3 w-3" />
                   </Button>

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Product Validation Schemas
- * Validates: Requirements 7.2
+ * Validates: Requirements 7.2, 9.4, 9.5, 6.6
  */
 
 export const productSchema = z.object({
@@ -62,6 +62,14 @@ export const productSchema = z.object({
     .nullish(),
   track_inventory: z.boolean().optional(),
   status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
+  meta_title: z
+    .string()
+    .max(70, "Meta title must not exceed 70 characters")
+    .nullish(),
+  meta_description: z
+    .string()
+    .max(160, "Meta description must not exceed 160 characters")
+    .nullish(),
 });
 
 export type ProductFormData = z.infer<typeof productSchema>;

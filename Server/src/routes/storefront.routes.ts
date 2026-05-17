@@ -8,6 +8,7 @@ import {
   registerRateLimiter,
   orderLookupRateLimiter,
 } from "../middlewares/storefrontRateLimiter.Middleware";
+import {verifyStorefrontSubscriptionAccess} from "../middlewares/storefrontSubscriptionAccess.Middleware"
 import * as storeController from "../controllers/storefront/store.Controller";
 import * as productController from "../controllers/storefront/product.Controller";
 import * as cartController from "../controllers/storefront/cart.Controller";
@@ -18,7 +19,7 @@ import * as customerController from "../controllers/storefront/customer.Controll
 const router = Router({ mergeParams: true });
 
 // Apply storefrontTenantMiddleware to ALL storefront routes
-router.use("/:domain", storefrontTenantMiddleware);
+router.use("/:domain", storefrontTenantMiddleware,verifyStorefrontSubscriptionAccess);
 
 // ========== Store Info Routes (public, optionalAuth) ==========
 

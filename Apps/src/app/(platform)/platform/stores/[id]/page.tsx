@@ -48,6 +48,7 @@ export default function PlatformStoreDetailPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const t = useTranslations();
+  const tA11y = useTranslations("accessibility.buttons");
   const locale = useAppSelector((state) => state.ui.locale);
 
   const storeId = Number(params.id);
@@ -174,7 +175,7 @@ export default function PlatformStoreDetailPage() {
             variant="ghost"
             size="icon"
             onClick={() => router.push(ROUTES.PLATFORM.STORES)}
-            aria-label={locale === "ar" ? "العودة" : "Back"}
+            aria-label={tA11y("backToList")}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>

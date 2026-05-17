@@ -45,6 +45,7 @@ import {
   optionValueIdParamSchema,
   inventoryVariantIdParamSchema,
 } from "../validators/catalog.validators";
+import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as categoryController from "../controllers/store-admin/category.Controller";
 import * as productController from "../controllers/store-admin/product.Controller";
 import * as productOptionController from "../controllers/store-admin/productOption.Controller";
@@ -61,14 +62,14 @@ const upload = multer({
 });
 
 // Apply verifyToken and resolveStoreContext to ALL catalog routes
-router.use(verifyToken, resolveStoreContext);
+router.use(verifyToken, resolveStoreContext, verifyStoreSubscriptionAccess);
 
 // ========== Category Routes ==========
 
 // GET /categories — list categories (tree or flat)
 router.get(
   "/categories",
-  requirePermission("category:view"),
+  requirePermission("catalog.view"),
   validateQuery(categoryListQuerySchema),
   categoryController.list,
 );
@@ -76,7 +77,7 @@ router.get(
 // POST /categories — create a new category
 router.post(
   "/categories",
-  requirePermission("category:create"),
+  requirePermission("categories.manage"),
   validateBody(createCategorySchema),
   categoryController.create,
 );
@@ -84,7 +85,7 @@ router.post(
 // PATCH /categories/reorder — bulk reorder categories (BEFORE :id to avoid conflict)
 router.patch(
   "/categories/reorder",
-  requirePermission("category:update"),
+  requirePermission("categories.manage"),
   validateBody(reorderCategoriesSchema),
   categoryController.reorder,
 );
@@ -92,7 +93,7 @@ router.patch(
 // GET /categories/:id — get category by ID
 router.get(
   "/categories/:id",
-  requirePermission("category:view"),
+  requirePermission("catalog.view"),
   validateParams(categoryIdParamSchema),
   categoryController.getById,
 );
@@ -100,7 +101,7 @@ router.get(
 // PATCH /categories/:id — update category
 router.patch(
   "/categories/:id",
-  requirePermission("category:update"),
+  requirePermission("catalog.view"),
   validateParams(categoryIdParamSchema),
   validateBody(updateCategorySchema),
   categoryController.update,
@@ -109,7 +110,7 @@ router.patch(
 // DELETE /categories/:id — delete category
 router.delete(
   "/categories/:id",
-  requirePermission("category:delete"),
+  requirePermission("categories.manage"),
   validateParams(categoryIdParamSchema),
   categoryController.remove,
 );
@@ -119,7 +120,7 @@ router.delete(
 // GET /products — list products (paginated with filters)
 router.get(
   "/products",
-  requirePermission("product:view"),
+  requirePermission("products.view"),
   validateQuery(productListQuerySchema),
   productController.list,
 );
@@ -127,7 +128,7 @@ router.get(
 // POST /products — create a new product
 router.post(
   "/products",
-  requirePermission("product:create"),
+  requirePermission("products.create"),
   validateBody(createProductSchema),
   productController.create,
 );
@@ -135,7 +136,7 @@ router.post(
 // GET /products/:id — get product by ID
 router.get(
   "/products/:id",
-  requirePermission("product:view"),
+  requirePermission("products.view"),
   validateParams(productIdParamSchema),
   productController.getById,
 );
@@ -143,7 +144,7 @@ router.get(
 // PATCH /products/:id — update product
 router.patch(
   "/products/:id",
-  requirePermission("product:update"),
+  requirePermission("products.update"),
   validateParams(productIdParamSchema),
   validateBody(updateProductSchema),
   productController.update,
@@ -152,7 +153,7 @@ router.patch(
 // DELETE /products/:id — delete product
 router.delete(
   "/products/:id",
-  requirePermission("product:delete"),
+  requirePermission("products.delete"),
   validateParams(productIdParamSchema),
   productController.remove,
 );
@@ -160,7 +161,7 @@ router.delete(
 // PATCH /products/:id/status — update product status
 router.patch(
   "/products/:id/status",
-  requirePermission("product:update"),
+  requirePermission("products.update"),
   validateParams(productIdParamSchema),
   validateBody(updateProductStatusSchema),
   productController.updateStatus,
@@ -169,7 +170,7 @@ router.patch(
 // POST /products/:id/publish — publish/unpublish product
 router.post(
   "/products/:id/publish",
-  requirePermission("product:update"),
+  requirePermission("products.update"),
   validateParams(productIdParamSchema),
   validateBody(publishProductSchema),
   productController.publish,
@@ -178,7 +179,7 @@ router.post(
 // POST /products/:id/duplicate — duplicate product
 router.post(
   "/products/:id/duplicate",
-  requirePermission("product:create"),
+  requirePermission("products.create"),
   validateParams(productIdParamSchema),
   productController.duplicate,
 );
@@ -188,14 +189,14 @@ router.post(
 // GET /products/:productId/options — list options for a product
 router.get(
   "/products/:productId/options",
-  requirePermission("product:view"),
+  requirePermission("products.view"),
   productOptionController.list,
 );
 
 // POST /products/:productId/options — create an option
 router.post(
   "/products/:productId/options",
-  requirePermission("product:create"),
+  requirePermission("variants.manage"),
   validateBody(createOptionSchema),
   productOptionController.create,
 );
@@ -203,7 +204,7 @@ router.post(
 // PATCH /products/:productId/options/:optionId — update an option
 router.patch(
   "/products/:productId/options/:optionId",
-  requirePermission("product:update"),
+  requirePermission("variants.manage"),
   validateParams(productOptionIdParamSchema),
   validateBody(updateOptionSchema),
   productOptionController.update,
@@ -212,7 +213,7 @@ router.patch(
 // DELETE /products/:productId/options/:optionId — delete an option
 router.delete(
   "/products/:productId/options/:optionId",
-  requirePermission("product:delete"),
+  requirePermission("variants.manage"),
   validateParams(productOptionIdParamSchema),
   productOptionController.remove,
 );
@@ -222,7 +223,7 @@ router.delete(
 // POST /products/:productId/options/:optionId/values — add a value
 router.post(
   "/products/:productId/options/:optionId/values",
-  requirePermission("product:create"),
+  requirePermission("variants.manage"),
   validateParams(productOptionIdParamSchema),
   validateBody(createOptionValueSchema),
   productOptionController.addValue,
@@ -231,7 +232,7 @@ router.post(
 // PATCH /products/:productId/options/:optionId/values/:valueId — update a value
 router.patch(
   "/products/:productId/options/:optionId/values/:valueId",
-  requirePermission("product:update"),
+  requirePermission("variants.manage"),
   validateParams(optionValueIdParamSchema),
   validateBody(updateOptionValueSchema),
   productOptionController.updateValue,
@@ -240,7 +241,7 @@ router.patch(
 // DELETE /products/:productId/options/:optionId/values/:valueId — delete a value
 router.delete(
   "/products/:productId/options/:optionId/values/:valueId",
-  requirePermission("product:delete"),
+  requirePermission("variants.manage"),
   validateParams(optionValueIdParamSchema),
   productOptionController.deleteValue,
 );
@@ -250,14 +251,14 @@ router.delete(
 // GET /products/:productId/variants — list variants for a product
 router.get(
   "/products/:productId/variants",
-  requirePermission("product:view"),
+  requirePermission("products.view"),
   productVariantController.list,
 );
 
 // POST /products/:productId/variants — create a variant
 router.post(
   "/products/:productId/variants",
-  requirePermission("product:create"),
+  requirePermission("variants.manage"),
   validateBody(createVariantSchema),
   productVariantController.create,
 );
@@ -265,14 +266,14 @@ router.post(
 // POST /products/:productId/variants/generate — generate variants from options
 router.post(
   "/products/:productId/variants/generate",
-  requirePermission("product:create"),
+  requirePermission("variants.manage"),
   productVariantController.generate,
 );
 
 // GET /variants/:variantId — get variant by ID
 router.get(
   "/variants/:variantId",
-  requirePermission("product:view"),
+  requirePermission("products.view"),
   validateParams(inventoryVariantIdParamSchema),
   productVariantController.getById,
 );
@@ -280,7 +281,7 @@ router.get(
 // PATCH /variants/:variantId — update variant
 router.patch(
   "/variants/:variantId",
-  requirePermission("product:update"),
+  requirePermission("variants.manage"),
   validateParams(inventoryVariantIdParamSchema),
   validateBody(updateVariantSchema),
   productVariantController.update,
@@ -289,7 +290,7 @@ router.patch(
 // DELETE /variants/:variantId — delete variant
 router.delete(
   "/variants/:variantId",
-  requirePermission("product:delete"),
+  requirePermission("variants.manage"),
   validateParams(inventoryVariantIdParamSchema),
   productVariantController.remove,
 );
@@ -297,7 +298,7 @@ router.delete(
 // PATCH /variants/:variantId/set-default — set variant as default
 router.patch(
   "/variants/:variantId/set-default",
-  requirePermission("product:update"),
+  requirePermission("variants.manage"),
   validateParams(inventoryVariantIdParamSchema),
   productVariantController.setDefault,
 );
@@ -307,7 +308,7 @@ router.patch(
 // GET /inventory — list inventory (paginated)
 router.get(
   "/inventory",
-  requirePermission("inventory:view"),
+  requirePermission("inventory.view"),
   validateQuery(inventoryListQuerySchema),
   inventoryController.list,
 );
@@ -315,14 +316,14 @@ router.get(
 // GET /inventory/low-stock — list low-stock items (BEFORE :variantId to avoid conflict)
 router.get(
   "/inventory/low-stock",
-  requirePermission("inventory:view"),
+  requirePermission("inventory.view"),
   inventoryController.getLowStock,
 );
 
 // GET /inventory/movements — list all inventory movements (BEFORE :variantId to avoid conflict)
 router.get(
   "/inventory/movements",
-  requirePermission("inventory:view"),
+  requirePermission("inventory.view"),
   validateQuery(movementListQuerySchema),
   inventoryController.listMovements,
 );
@@ -330,7 +331,7 @@ router.get(
 // GET /inventory/:variantId — get inventory for a variant
 router.get(
   "/inventory/:variantId",
-  requirePermission("inventory:view"),
+  requirePermission("inventory.view"),
   validateParams(inventoryVariantIdParamSchema),
   inventoryController.getByVariantId,
 );
@@ -338,7 +339,7 @@ router.get(
 // POST /inventory/:variantId/adjust — adjust inventory
 router.post(
   "/inventory/:variantId/adjust",
-  requirePermission("inventory:adjust"),
+  requirePermission("inventory.adjust"),
   validateParams(inventoryVariantIdParamSchema),
   validateBody(adjustInventorySchema),
   inventoryController.adjust,
@@ -347,7 +348,7 @@ router.post(
 // GET /inventory/:variantId/movements — get movements for a variant
 router.get(
   "/inventory/:variantId/movements",
-  requirePermission("inventory:view"),
+  requirePermission("inventory.view"),
   validateParams(inventoryVariantIdParamSchema),
   inventoryController.getVariantMovements,
 );
@@ -357,7 +358,7 @@ router.get(
 // POST /products/:productId/media — upload media (with multer)
 router.post(
   "/products/:productId/media",
-  requirePermission("product:create"),
+  requirePermission("products.update"),
   upload.single("file"),
   productMediaController.upload,
 );
@@ -365,7 +366,7 @@ router.post(
 // PATCH /products/:productId/media/reorder — reorder media (BEFORE :id to avoid conflict)
 router.patch(
   "/products/:productId/media/reorder",
-  requirePermission("product:update"),
+  requirePermission("products.update"),
   validateBody(reorderMediaSchema),
   productMediaController.reorder,
 );
@@ -373,7 +374,7 @@ router.patch(
 // PATCH /products/:productId/media/:id — update media alt text
 router.patch(
   "/products/:productId/media/:id",
-  requirePermission("product:update"),
+  requirePermission("products.update"),
   validateParams(productMediaIdParamSchema),
   validateBody(updateMediaSchema),
   productMediaController.updateAltText,
@@ -382,7 +383,7 @@ router.patch(
 // DELETE /products/:productId/media/:id — delete media
 router.delete(
   "/products/:productId/media/:id",
-  requirePermission("product:delete"),
+  requirePermission("products.update"),
   validateParams(productMediaIdParamSchema),
   productMediaController.remove,
 );

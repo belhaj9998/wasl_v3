@@ -12,6 +12,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowLeft,
   Upload,
@@ -511,11 +512,13 @@ export default function ProductMediaPage() {
                   </div>
 
                   {/* Image */}
-                  <div className="aspect-square bg-muted">
-                    <img
+                  <div className="aspect-square bg-muted relative">
+                    <Image
                       src={item.url}
                       alt={item.alt_text || `صورة المنتج ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      className="object-cover"
                     />
                   </div>
 
@@ -585,11 +588,13 @@ export default function ProductMediaPage() {
 
           <div className="space-y-4">
             {altDialog.mediaItem && (
-              <div className="aspect-video bg-muted rounded-lg overflow-hidden">
-                <img
+              <div className="aspect-video bg-muted rounded-lg overflow-hidden relative">
+                <Image
                   src={altDialog.mediaItem.url}
                   alt="معاينة"
-                  className="w-full h-full object-contain"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 400px"
+                  className="object-contain"
                 />
               </div>
             )}

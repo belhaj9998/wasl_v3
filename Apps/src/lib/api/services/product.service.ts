@@ -25,6 +25,7 @@ export interface CreateProductPayload {
   cost_price?: string;
   track_inventory?: boolean;
   category_ids?: number[];
+  status?: string;
 }
 
 export interface UpdateProductPayload extends Partial<CreateProductPayload> {}

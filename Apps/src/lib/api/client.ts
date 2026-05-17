@@ -1,9 +1,9 @@
 /**
  * API Client
  * Centralized HTTP client wrapping native fetch with automatic token management,
- * refresh logic, and multi-tenancy headers.
+ * refresh logic, multi-tenancy headers, and retry with exponential backoff.
  *
- * Requirements: 1.4, 1.5, 1.6, 26.1, 26.2, 26.3, 26.4, 26.5, 26.6, 26.7
+ * Requirements: 1.4, 1.5, 1.6, 2.6, 2.7, 26.1, 26.2, 26.3, 26.4, 26.5, 26.6, 26.7
  */
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/lib/constants";
@@ -135,12 +135,12 @@ export async function apiClient<T>(
       return apiClient<T>(url, { ...options, _isRetry: true });
     }
 
-    // Refresh failed — clear tokens and redirect to login
+    // Refresh failed — clear tokens and redirect to login with session expired flag
     setAccessToken(null);
     setCustomerToken(null);
 
     if (typeof window !== "undefined") {
-      window.location.href = "/login";
+      window.location.href = "/login?session_expired=true";
     }
 
     throw new Error("Session expired");
@@ -154,3 +154,10 @@ export async function apiClient<T>(
 
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Re-export retry utilities for convenience
+// ---------------------------------------------------------------------------
+
+export { fetchWithRetry, DEFAULT_RETRY_CONFIG } from "./retry";
+export type { RetryConfig } from "./retry";

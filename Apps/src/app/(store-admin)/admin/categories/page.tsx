@@ -25,6 +25,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import {
@@ -69,7 +70,7 @@ const categoryFormSchema = z.object({
   slug: categorySchema.shape.slug,
   description: z.string().nullish(),
   parent_id: z.string().nullish(),
-  image_url: z.string().url("رابط غير صالح").nullish().or(z.literal("")),
+  image_url: z.string().url().nullish().or(z.literal("")),
   is_active: z.boolean().optional(),
 });
 
@@ -96,6 +97,8 @@ function CategoryFormDialog({
 }: CategoryFormDialogProps) {
   const isEdit = !!category;
   const [serverErrors, setServerErrors] = useState<string[]>([]);
+  const t = useTranslations("categories");
+  const tCommon = useTranslations("common");
 
   const {
     control,
@@ -168,7 +171,7 @@ function CategoryFormDialog({
       } else if (err && typeof err === "object" && "message" in err) {
         setServerErrors([(err as { message: string }).message]);
       } else {
-        const message = typeof err === "string" ? err : "حدث خطأ أثناء الحفظ";
+        const message = typeof err === "string" ? err : t("createFailed");
         setServerErrors([message]);
       }
     }
@@ -176,7 +179,7 @@ function CategoryFormDialog({
 
   // Build parent options (exclude current category and its children to prevent cycles)
   const parentOptions = useMemo(() => {
-    const options = [{ value: "", label: "بدون فئة أب (جذر)" }];
+    const options = [{ value: "", label: t("noParent") }];
 
     const getDescendantIds = (cat: Category): number[] => {
       const ids = [cat.id];
@@ -215,10 +218,10 @@ function CategoryFormDialog({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "تعديل الفئة" : "إنشاء فئة جديدة"}
+            {isEdit ? t("editTitle") : t("createTitle")}
           </DialogTitle>
           <DialogDescription>
-            {isEdit ? "قم بتعديل بيانات الفئة" : "أدخل بيانات الفئة الجديدة"}
+            {isEdit ? t("editDescription") : t("createDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -228,42 +231,42 @@ function CategoryFormDialog({
           <FormField
             control={control}
             name="name"
-            label="اسم الفئة"
-            placeholder="مثال: إلكترونيات"
+            label={t("nameLabel")}
+            placeholder={t("namePlaceholder")}
             required
           />
 
           <FormField
             control={control}
             name="slug"
-            label="الرابط (Slug)"
-            placeholder="يُنشأ تلقائياً من الاسم"
-            description="اتركه فارغاً للإنشاء التلقائي"
+            label={t("slugLabel")}
+            placeholder={t("slugPlaceholder")}
+            description={t("slugDescription")}
           />
 
           <FormField
             control={control}
             name="description"
-            label="الوصف"
+            label={t("descriptionLabel")}
             type="textarea"
-            placeholder="وصف اختياري للفئة"
+            placeholder={t("descriptionPlaceholder")}
           />
 
           <FormField
             control={control}
             name="parent_id"
-            label="الفئة الأب"
+            label={t("parentLabel")}
             type="select"
             options={parentOptions}
-            placeholder="اختر الفئة الأب"
+            placeholder={t("parentPlaceholder")}
           />
 
           <FormField
             control={control}
             name="image_url"
-            label="رابط الصورة"
+            label={t("imageUrlLabel")}
             placeholder="https://example.com/image.jpg"
-            description="رابط صورة الفئة (اختياري)"
+            description={t("imageUrlDescription")}
           />
 
           <Controller
@@ -290,10 +293,10 @@ function CategoryFormDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              إلغاء
+              {tCommon("cancel")}
             </Button>
             <SubmitButton isSubmitting={isSubmitting}>
-              {isEdit ? "حفظ التعديلات" : "إنشاء"}
+              {isEdit ? t("saveChanges") : tCommon("create")}
             </SubmitButton>
           </div>
         </form>
@@ -342,6 +345,8 @@ function CategoryTreeNode({
   parentId,
   dragOverId,
 }: CategoryTreeNodeProps) {
+  const t = useTranslations("categories");
+  const tCommon = useTranslations("common");
   const hasChildren = category.children && category.children.length > 0;
   const isExpanded = expanded.has(category.id);
   const isMaxDepth = level >= 3;
@@ -378,7 +383,7 @@ function CategoryTreeNode({
           <button
             onClick={() => onToggle(category.id)}
             className="shrink-0 rounded p-0.5 hover:bg-muted"
-            aria-label={isExpanded ? "طي" : "توسيع"}
+            aria-label={isExpanded ? t("collapse") : t("expand")}
           >
             {isExpanded ? (
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
@@ -419,7 +424,7 @@ function CategoryTreeNode({
               size="icon"
               className="h-7 w-7"
               onClick={() => onEdit(category)}
-              aria-label="تعديل"
+              aria-label={tCommon("edit")}
             >
               <Pencil className="h-3.5 w-3.5" />
             </Button>
@@ -431,7 +436,7 @@ function CategoryTreeNode({
               size="icon"
               className="h-7 w-7 text-destructive hover:text-destructive"
               onClick={() => onDelete(category)}
-              aria-label="حذف"
+              aria-label={tCommon("delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -488,6 +493,9 @@ function CategoryTreeSkeleton() {
 export default function CategoriesPage() {
   const dispatch = useAppDispatch();
   const { currentStoreId } = useStore();
+  const t = useTranslations("categories");
+  const tSuccess = useTranslations("success");
+  const tCommon = useTranslations("common");
 
   const {
     items: flatCategories,
@@ -570,7 +578,7 @@ export default function CategoriesPage() {
       await dispatch(
         createCategory({ storeId: currentStoreId, payload }),
       ).unwrap();
-      toast.success("تم إنشاء الفئة بنجاح");
+      toast.success(tSuccess("crud.created"));
       // Refetch to get updated tree
       dispatch(fetchCategories({ storeId: currentStoreId }));
     },
@@ -598,7 +606,7 @@ export default function CategoriesPage() {
           payload,
         }),
       ).unwrap();
-      toast.success("تم تعديل الفئة بنجاح");
+      toast.success(tSuccess("crud.updated"));
       // Refetch to get updated tree
       dispatch(fetchCategories({ storeId: currentStoreId }));
     },
@@ -617,11 +625,11 @@ export default function CategoriesPage() {
           categoryId: deleteDialog.category.id,
         }),
       ).unwrap();
-      toast.success("تم حذف الفئة بنجاح");
+      toast.success(tSuccess("crud.deleted"));
       // Refetch to get updated tree (children reassigned by backend)
       dispatch(fetchCategories({ storeId: currentStoreId }));
     } catch (err: unknown) {
-      const message = typeof err === "string" ? err : "فشل حذف الفئة";
+      const message = typeof err === "string" ? err : t("deleteFailed");
       toast.error(message);
     } finally {
       setActionLoading(false);
@@ -718,7 +726,7 @@ export default function CategoriesPage() {
 
       // Validate max 200 items (Requirement 8.4)
       if (items.length > 200) {
-        toast.error("لا يمكن إعادة ترتيب أكثر من 200 عنصر في المرة الواحدة");
+        toast.error(t("reorderMax"));
         setDragSource(null);
         return;
       }
@@ -728,12 +736,12 @@ export default function CategoriesPage() {
       )
         .unwrap()
         .then(() => {
-          toast.success("تم إعادة الترتيب بنجاح");
+          toast.success(tSuccess("category.reordered"));
           dispatch(fetchCategories({ storeId: currentStoreId }));
         })
         .catch((err: unknown) => {
           // Handle invalid category IDs in reorder (Requirement 8.5)
-          const message = typeof err === "string" ? err : "فشل إعادة الترتيب";
+          const message = typeof err === "string" ? err : t("reorderFailed");
           toast.error(message);
         });
 
@@ -773,13 +781,13 @@ export default function CategoriesPage() {
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <p className="text-destructive mb-4">{error}</p>
           <Button variant="outline" onClick={handleRetry}>
-            إعادة المحاولة
+            {tCommon("retry")}
           </Button>
         </div>
       ) : categoryTree.length === 0 ? (
         <EmptyState
           icon={<FolderTree className="h-12 w-12" />}
-          message="لا توجد فئات"
+          message={t("noCategories")}
         />
       ) : (
         <div
@@ -814,7 +822,7 @@ export default function CategoriesPage() {
         <div className="flex items-center justify-center py-2">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           <span className="ms-2 text-sm text-muted-foreground">
-            جاري التحديث...
+            {tCommon("loading")}
           </span>
         </div>
       )}
@@ -836,10 +844,12 @@ export default function CategoriesPage() {
         onOpenChange={(open) => {
           if (!open) setDeleteDialog({ open: false, category: null });
         }}
-        title="حذف الفئة"
-        description={`هل أنت متأكد من حذف الفئة "${deleteDialog.category?.name}"؟ سيتم نقل الفئات الفرعية إلى الفئة الأب.`}
-        confirmLabel="حذف"
-        cancelLabel="إلغاء"
+        title={t("deleteTitle")}
+        description={t("deleteDescription", {
+          name: deleteDialog.category?.name || "",
+        })}
+        confirmLabel={tCommon("delete")}
+        cancelLabel={tCommon("cancel")}
         onConfirm={handleDelete}
         destructive
         loading={actionLoading}

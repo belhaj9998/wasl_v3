@@ -15,6 +15,9 @@ export { platformService } from "./platform.service";
 export { storefrontService } from "./storefront.service";
 export { uploadService } from "./upload.service";
 export { storeSettingsService } from "./storeSettings.service";
+export { notificationSettingsService } from "./notificationSettings.service";
+export { notificationService } from "./notification.service";
+export { storeService } from "./store.service";
 
 // Re-export payload types for convenience
 export type {
@@ -102,3 +105,12 @@ export type {
   UpdateSeoPayload,
   UpdateContactPayload,
 } from "./storeSettings.service";
+export type {
+  NotificationSettings,
+  UpdateNotificationSettingsPayload,
+} from "./notificationSettings.service";
+export type {
+  CreateStoreRequest,
+  CreateStoreResponse,
+  UserSubscriptionInfo,
+} from "./store.service";

@@ -5,14 +5,25 @@ import type {
   UpdateCouponPayload,
 } from "@/lib/api/services/coupon.service";
 import type { PaginationParams } from "@/types";
+import type { RootState } from "../store";
+import { shouldUseCachedData } from "../cache";
+import { optimisticDeleteCoupon, rollbackCoupons } from "./coupons.slice";
 
 export const fetchCoupons = createAsyncThunk(
   "coupons/fetchAll",
   async (
     { storeId, params }: { storeId: number; params?: PaginationParams },
-    { rejectWithValue },
+    { rejectWithValue, getState },
   ) => {
     try {
+      const state = getState() as RootState;
+      const { listCache } = state.coupons;
+
+      // Return cached data if valid and params match
+      if (shouldUseCachedData(listCache, params)) {
+        return { data: listCache!.data.data, meta: listCache!.data.meta };
+      }
+
       const response = await couponService.getAll(storeId, params);
       return response;
     } catch (error: unknown) {
@@ -82,12 +93,14 @@ export const deleteCoupon = createAsyncThunk(
   "coupons/delete",
   async (
     { storeId, couponId }: { storeId: number; couponId: number },
-    { rejectWithValue },
+    { dispatch, rejectWithValue },
   ) => {
+    dispatch(optimisticDeleteCoupon(couponId));
     try {
       await couponService.delete(storeId, couponId);
       return couponId;
     } catch (error: unknown) {
+      dispatch(rollbackCoupons());
       const message =
         error instanceof Error ? error.message : "Failed to delete coupon";
       return rejectWithValue(message);

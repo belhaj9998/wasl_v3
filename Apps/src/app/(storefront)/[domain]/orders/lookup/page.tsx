@@ -189,7 +189,7 @@ export default function StorefrontOrderLookupPage() {
             {/* Items */}
             {order.items && order.items.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold mb-3">{t("items")}</h3>
+                <h2 className="text-sm font-semibold mb-3">{t("items")}</h2>
                 <div className="space-y-2">
                   {order.items.map((item, index) => (
                     <div key={index} className="flex justify-between text-sm">
@@ -210,9 +210,9 @@ export default function StorefrontOrderLookupPage() {
             {/* Shipping Address */}
             {order.shipping_address && (
               <div>
-                <h3 className="text-sm font-semibold mb-2">
+                <h2 className="text-sm font-semibold mb-2">
                   {t("shippingAddress")}
-                </h3>
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   {order.shipping_address.full_name}
                   <br />
@@ -232,9 +232,9 @@ export default function StorefrontOrderLookupPage() {
               <>
                 <Separator />
                 <div>
-                  <h3 className="text-sm font-semibold mb-3">
+                  <h2 className="text-sm font-semibold mb-3">
                     {t("timeline")}
-                  </h3>
+                  </h2>
                   <div className="space-y-3">
                     {order.timeline.map((event, index) => (
                       <div key={index} className="flex gap-3 text-sm">

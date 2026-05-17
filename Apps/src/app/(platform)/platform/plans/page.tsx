@@ -25,6 +25,7 @@ import {
   deletePlatformPlan,
 } from "@/lib/store/slices/platform.thunks";
 import { planSchema, type PlanFormData } from "@/lib/validators/plan.schema";
+import { toastSuccess, toastError } from "@/lib/toast/toastManager";
 import type { Plan } from "@/types";
 
 /**
@@ -32,11 +33,12 @@ import type { Plan } from "@/types";
  * Allows platform admins to create, edit, and delete subscription plans.
  * Handles 409 for duplicate plan codes and prevents deletion of plans with active subscriptions.
  *
- * Requirements: 5.1, 5.2, 5.3, 5.6
+ * Requirements: 9.6
  */
 export default function PlansPage() {
   const dispatch = useAppDispatch();
-  const t = useTranslations("platform");
+  const t = useTranslations("planForm");
+  const tA11y = useTranslations("accessibility.buttons");
   const {
     items: plans,
     loading,
@@ -60,8 +62,8 @@ export default function PlansPage() {
   } = useForm<PlanFormData>({
     resolver: zodResolver(planSchema),
     defaultValues: {
-      code: "",
       name: "",
+      code: "",
       price_monthly: 0,
       price_yearly: null,
       max_stores: null,
@@ -79,8 +81,8 @@ export default function PlansPage() {
     setEditingPlan(null);
     setServerErrors([]);
     reset({
-      code: "",
       name: "",
+      code: "",
       price_monthly: 0,
       price_yearly: null,
       max_stores: null,
@@ -96,8 +98,8 @@ export default function PlansPage() {
       setEditingPlan(plan);
       setServerErrors([]);
       reset({
-        code: plan.code,
         name: plan.name,
+        code: plan.code,
         price_monthly: parseFloat(plan.price_monthly),
         price_yearly: plan.price_yearly ? parseFloat(plan.price_yearly) : null,
         max_stores: (plan.features?.max_stores as number) ?? null,
@@ -121,16 +123,17 @@ export default function PlansPage() {
       await dispatch(deletePlatformPlan(deleteConfirm.plan.id)).unwrap();
       setDeleteConfirm({ open: false, plan: null });
       setDeleteError(null);
+      toastSuccess(t("deleteSuccess"));
     } catch (err: unknown) {
       const message =
         err instanceof Error
           ? err.message
           : typeof err === "string"
             ? err
-            : "لا يمكن حذف الخطة لأنها مرتبطة باشتراكات نشطة";
+            : t("deleteActiveError");
       setDeleteError(message);
     }
-  }, [deleteConfirm.plan, dispatch]);
+  }, [deleteConfirm.plan, dispatch, t]);
 
   const onSubmit = useCallback(
     async (data: PlanFormData) => {
@@ -182,6 +185,7 @@ export default function PlansPage() {
               payload: payload as Record<string, string>,
             }),
           ).unwrap();
+          toastSuccess(t("updateSuccess"));
         } else {
           // Create new plan
           await dispatch(
@@ -200,6 +204,7 @@ export default function PlansPage() {
               is_active: data.is_active,
             }),
           ).unwrap();
+          toastSuccess(t("createSuccess"));
         }
 
         setFormOpen(false);
@@ -210,7 +215,7 @@ export default function PlansPage() {
             ? err.message
             : typeof err === "string"
               ? err
-              : "حدث خطأ غير متوقع";
+              : t("unexpectedError");
 
         // Handle 409 duplicate plan code
         if (
@@ -218,62 +223,63 @@ export default function PlansPage() {
           message.toLowerCase().includes("duplicate") ||
           message.toLowerCase().includes("already")
         ) {
-          setServerErrors(["رمز الخطة مستخدم بالفعل"]);
+          setServerErrors([t("duplicateCode")]);
         } else {
           setServerErrors([message]);
+          toastError(t("saveError"));
         }
       }
     },
-    [editingPlan, dispatch, reset],
+    [editingPlan, dispatch, reset, t],
   );
 
   const columns: ColumnDef<Plan, unknown>[] = [
     {
       id: "code",
-      header: "الرمز",
+      header: t("fields.code"),
       accessorKey: "code",
       enableSorting: true,
     },
     {
       id: "name",
-      header: "الاسم",
+      header: t("fields.name"),
       accessorKey: "name",
       enableSorting: true,
     },
     {
       id: "price_monthly",
-      header: "السعر الشهري",
+      header: t("fields.priceMonthly"),
       accessorKey: "price_monthly",
       cell: ({ row }) => `${row.original.price_monthly} د.ل`,
     },
     {
       id: "price_yearly",
-      header: "السعر السنوي",
+      header: t("fields.priceYearly"),
       accessorKey: "price_yearly",
       cell: ({ row }) =>
         row.original.price_yearly ? `${row.original.price_yearly} د.ل` : "—",
     },
     {
       id: "is_active",
-      header: "الحالة",
+      header: t("fields.status"),
       accessorKey: "is_active",
       cell: ({ row }) => (
         <StatusBadge
-          label={row.original.is_active ? "نشط" : "غير نشط"}
+          label={row.original.is_active ? t("active") : t("inactive")}
           variant={row.original.is_active ? "success" : "neutral"}
         />
       ),
     },
     {
       id: "actions",
-      header: "الإجراءات",
+      header: t("fields.actions"),
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => handleOpenEdit(row.original)}
-            aria-label="تعديل الخطة"
+            aria-label={tA11y("editItem")}
           >
             <Pencil className="h-4 w-4" />
           </Button>
@@ -281,7 +287,7 @@ export default function PlansPage() {
             variant="ghost"
             size="icon"
             onClick={() => handleDelete(row.original)}
-            aria-label="حذف الخطة"
+            aria-label={tA11y("deleteItem")}
           >
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
@@ -294,10 +300,10 @@ export default function PlansPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">إدارة الخطط</h2>
+        <h2 className="text-2xl font-bold">{t("title")}</h2>
         <Button onClick={handleOpenCreate}>
           <Plus className="me-2 h-4 w-4" />
-          إضافة خطة
+          {t("addPlan")}
         </Button>
       </div>
 
@@ -309,7 +315,7 @@ export default function PlansPage() {
         loading={loading}
         error={error}
         onRetry={() => dispatch(fetchPlatformPlans(undefined))}
-        emptyMessage="لا توجد خطط بعد"
+        emptyMessage={t("emptyMessage")}
         emptyIcon={<CreditCard className="h-12 w-12" />}
       />
 
@@ -318,12 +324,10 @@ export default function PlansPage() {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
-              {editingPlan ? "تعديل الخطة" : "إنشاء خطة جديدة"}
+              {editingPlan ? t("editTitle") : t("createTitle")}
             </DialogTitle>
             <DialogDescription>
-              {editingPlan
-                ? "قم بتعديل بيانات الخطة"
-                : "أدخل بيانات الخطة الجديدة"}
+              {editingPlan ? t("editDescription") : t("createDescription")}
             </DialogDescription>
           </DialogHeader>
 
@@ -332,68 +336,68 @@ export default function PlansPage() {
 
             <FormField
               control={control}
-              name="code"
-              label="رمز الخطة"
-              placeholder="basic-plan"
+              name="name"
+              label={t("fields.name")}
+              placeholder={t("placeholders.name")}
               required
-              disabled={!!editingPlan}
-              description="أحرف صغيرة وأرقام وشرطات فقط"
             />
 
             <FormField
               control={control}
-              name="name"
-              label="اسم الخطة"
-              placeholder="الخطة الأساسية"
+              name="code"
+              label={t("fields.code")}
+              placeholder={t("placeholders.code")}
               required
+              disabled={!!editingPlan}
+              description={t("codeDescription")}
             />
 
             <FormField
               control={control}
               name="price_monthly"
-              label="السعر الشهري"
+              label={t("fields.priceMonthly")}
               type="number"
-              placeholder="29.99"
+              placeholder={t("placeholders.priceMonthly")}
               required
             />
 
             <FormField
               control={control}
               name="price_yearly"
-              label="السعر السنوي"
+              label={t("fields.priceYearly")}
               type="number"
-              placeholder="299.99"
-              description="اختياري"
+              placeholder={t("placeholders.priceYearly")}
+              description={t("priceYearlyDescription")}
             />
 
             <div className="grid grid-cols-3 gap-3">
               <FormField
                 control={control}
-                name="max_stores"
-                label="الحد الأقصى للمتاجر"
-                type="number"
-                placeholder="5"
-              />
-
-              <FormField
-                control={control}
                 name="max_products"
-                label="الحد الأقصى للمنتجات"
+                label={t("fields.maxProducts")}
                 type="number"
-                placeholder="1000"
+                placeholder={t("placeholders.maxProducts")}
               />
 
               <FormField
                 control={control}
                 name="max_staff"
-                label="الحد الأقصى للموظفين"
+                label={t("fields.maxStaff")}
                 type="number"
-                placeholder="10"
+                placeholder={t("placeholders.maxStaff")}
+              />
+
+              <FormField
+                control={control}
+                name="max_stores"
+                label={t("fields.maxStores")}
+                type="number"
+                placeholder={t("placeholders.maxStores")}
               />
             </div>
 
             <SubmitButton isSubmitting={isSubmitting} className="w-full">
-              {editingPlan ? "حفظ التعديلات" : "إنشاء الخطة"}
+              {editingPlan ? t("saveChanges") : t("createPlan")}
             </SubmitButton>
           </form>
         </DialogContent>
@@ -408,13 +412,13 @@ export default function PlansPage() {
             setDeleteError(null);
           }
         }}
-        title="حذف الخطة"
+        title={t("deleteTitle")}
         description={
           deleteError
             ? deleteError
-            : `هل أنت متأكد من حذف الخطة "${deleteConfirm.plan?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+            : t("deleteDescription", { name: deleteConfirm.plan?.name ?? "" })
         }
-        confirmLabel="حذف"
+        confirmLabel={t("deleteConfirm")}
         onConfirm={confirmDelete}
         destructive
       />

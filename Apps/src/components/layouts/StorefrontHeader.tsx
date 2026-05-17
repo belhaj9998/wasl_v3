@@ -9,6 +9,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { ShoppingCart, User, Menu } from "lucide-react";
 
@@ -17,6 +18,7 @@ import { selectCartItemCount } from "@/lib/store/slices/cart.slice";
 import { ROUTES } from "@/lib/constants/routes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ProductSearch } from "@/components/storefront/ProductSearch";
 import type { Store, Category } from "@/types";
 
 export interface StorefrontHeaderProps {
@@ -44,9 +46,11 @@ export function StorefrontHeader({
             className="flex items-center gap-2"
           >
             {store.logo_url && (
-              <img
+              <Image
                 src={store.logo_url}
                 alt={store.name}
+                width={32}
+                height={32}
                 className="h-8 w-8 rounded object-cover"
               />
             )}
@@ -79,6 +83,9 @@ export function StorefrontHeader({
               </Link>
             ))}
           </nav>
+
+          {/* Product Search */}
+          <ProductSearch className="hidden md:block w-64 lg:w-80" />
 
           {/* Actions */}
           <div className="flex items-center gap-2">
@@ -113,6 +120,8 @@ export function StorefrontHeader({
               </SheetTrigger>
               <SheetContent side="right" className="w-72">
                 <nav className="flex flex-col gap-4 mt-8">
+                  {/* Mobile Search */}
+                  <ProductSearch className="w-full" />
                   <Link
                     href={ROUTES.STOREFRONT.HOME(domain)}
                     onClick={() => setMobileMenuOpen(false)}

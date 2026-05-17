@@ -8,19 +8,26 @@
  * Requirements: 6.1, 6.6, 6.7, 15.2, 15.5
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Store as StoreIcon, Moon, Sun, Globe, LogOut } from "lucide-react";
+import { toast } from "sonner";
 
-import { useAuth, useStore, useTheme } from "@/hooks";
+import { useAuth, useStore, useTheme, useSessionValidator } from "@/hooks";
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import { setLocale } from "@/lib/store/slices/ui.slice";
 import { persistLocale } from "@/lib/i18n/config";
 import { apiClient } from "@/lib/api/client";
+import { storeService } from "@/lib/api/services/store.service";
 import { STORAGE_KEYS } from "@/lib/constants/storage";
+import {
+  StoreSubscriptionContext,
+  type StoreSubscriptionContextValue,
+} from "@/lib/providers/StoreSubscriptionProvider";
 import type { SupportedLocale } from "@/lib/i18n/config";
 import type { Store, ApiResponse } from "@/types";
+import type { UserSubscriptionInfo } from "@/lib/api/services/store.service";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -41,10 +48,13 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Logo } from "@/components/shared";
+import { CreateStoreButton } from "@/components/shared/CreateStoreButton";
+import { CreateStoreDialog } from "@/components/forms/CreateStoreDialog";
 import {
   StoreAdminSidebar,
   StoreAdminMobileSidebar,
 } from "@/components/layouts/StoreAdminSidebar";
+import { ROUTES } from "@/lib/constants/routes";
 
 // ─── Store Selection Prompt ──────────────────────────────────────────────────
 
@@ -52,14 +62,23 @@ interface StoreSelectionPromptProps {
   stores: Store[];
   loading: boolean;
   onSelect: (storeId: number) => void;
+  storeCount: number;
+  maxStores: number | null;
+  hasActiveSubscription: boolean;
+  onStoreCreated: (newStore: Store) => void;
 }
 
 function StoreSelectionPrompt({
   stores,
   loading,
   onSelect,
+  storeCount,
+  maxStores,
+  hasActiveSubscription,
+  onStoreCreated,
 }: StoreSelectionPromptProps) {
   const t = useTranslations("store");
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   if (loading) {
     return (
@@ -92,6 +111,15 @@ function StoreSelectionPrompt({
           <div className="rounded-lg border bg-card p-6">
             <StoreIcon className="mx-auto h-12 w-12 text-muted-foreground" />
             <p className="mt-4 text-muted-foreground">{t("noStores")}</p>
+            <div className="mt-4">
+              <CreateStoreButton
+                variant="first-store"
+                storeCount={storeCount}
+                maxStores={maxStores}
+                hasActiveSubscription={hasActiveSubscription}
+                onOpenDialog={() => setDialogOpen(true)}
+              />
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -114,9 +142,24 @@ function StoreSelectionPrompt({
                 </div>
               </button>
             ))}
+            <div className="pt-2">
+              <CreateStoreButton
+                variant="first-store"
+                storeCount={storeCount}
+                maxStores={maxStores}
+                hasActiveSubscription={hasActiveSubscription}
+                onOpenDialog={() => setDialogOpen(true)}
+              />
+            </div>
           </div>
         )}
       </div>
+
+      <CreateStoreDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSuccess={onStoreCreated}
+      />
     </div>
   );
 }
@@ -180,6 +223,7 @@ function StoreAdminHeader({
   const tAuth = useTranslations("auth");
   const tTheme = useTranslations("theme");
   const tLang = useTranslations("language");
+  const tA11y = useTranslations("accessibility.buttons");
   const pathname = usePathname();
 
   const toggleLocale = () => {
@@ -270,7 +314,12 @@ function StoreAdminHeader({
         {/* User menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="rounded-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label={tA11y("userMenu")}
+            >
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="text-xs">
                   {userInitials}
@@ -308,38 +357,48 @@ export default function StoreAdminLayout({
 }) {
   const { currentStoreId, switchStore } = useStore();
   const { user } = useAuth();
+  const router = useRouter();
+  const tCreateStore = useTranslations("createStore");
   const [userStores, setUserStores] = useState<Store[]>([]);
   const [storesLoading, setStoresLoading] = useState(true);
+  const [subscriptionInfo, setSubscriptionInfo] =
+    useState<UserSubscriptionInfo | null>(null);
 
-  // Fetch user's stores on mount
-  useEffect(() => {
-    let cancelled = false;
+  // Validate session on mount — calls /auth/me and redirects on failure
+  useSessionValidator();
 
-    async function fetchUserStores() {
-      try {
-        setStoresLoading(true);
-        const response =
-          await apiClient<ApiResponse<Store[]>>("/auth/me/stores");
-        if (!cancelled) {
-          setUserStores(response.data);
-        }
-      } catch {
-        // If fetching stores fails, set empty array
-        if (!cancelled) {
-          setUserStores([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setStoresLoading(false);
-        }
+  // Fetch user's stores and subscription info on mount
+  const fetchUserStores = useCallback(async () => {
+    try {
+      setStoresLoading(true);
+      const [storesResponse, subscriptionResponse] = await Promise.allSettled([
+        apiClient<ApiResponse<Store[]>>("/auth/me/stores"),
+        storeService.getUserSubscriptionInfo(),
+      ]);
+
+      if (storesResponse.status === "fulfilled") {
+        setUserStores(storesResponse.value.data);
+      } else {
+        setUserStores([]);
       }
+
+      if (subscriptionResponse.status === "fulfilled") {
+        setSubscriptionInfo(subscriptionResponse.value.data);
+      } else {
+        // Default to no subscription info on failure
+        setSubscriptionInfo(null);
+      }
+    } catch {
+      setUserStores([]);
+      setSubscriptionInfo(null);
+    } finally {
+      setStoresLoading(false);
     }
+  }, []);
 
+  useEffect(() => {
     fetchUserStores();
-
-    return () => {
-      cancelled = true;
-    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Restore persisted store on mount if currentStoreId is set but permissions not loaded
@@ -361,34 +420,82 @@ export default function StoreAdminLayout({
     [switchStore],
   );
 
+  // Handle store creation from the StoreSelectionPrompt:
+  // Set currentStoreId in Redux, persist to localStorage, fetch permissions, navigate to dashboard
+  const handleStoreCreatedFromPrompt = useCallback(
+    async (newStore: Store) => {
+      // Add the new store to the local list
+      setUserStores((prev) => [...prev, newStore]);
+
+      // Switch to the new store (sets Redux, persists to localStorage, fetches permissions)
+      await switchStore(newStore.id);
+
+      // Show success toast
+      toast.success(tCreateStore("successToast"), { duration: 5000 });
+
+      // Navigate to dashboard
+      router.push(ROUTES.STORE_ADMIN.DASHBOARD);
+    },
+    [switchStore, tCreateStore, router],
+  );
+
+  // Compute storeCount: exclude ARCHIVED stores (soft-deleted are filtered server-side)
+  const storeCount = useMemo(
+    () => userStores.filter((s) => s.status !== "ARCHIVED").length,
+    [userStores],
+  );
+
+  // Build subscription context value
+  const subscriptionContextValue = useMemo<StoreSubscriptionContextValue>(
+    () => ({
+      storeCount,
+      maxStores: subscriptionInfo?.maxStores ?? null,
+      hasActiveSubscription: subscriptionInfo?.hasActiveSubscription ?? false,
+      userStores,
+      storesLoading,
+      refreshStores: fetchUserStores,
+    }),
+    [storeCount, subscriptionInfo, userStores, storesLoading, fetchUserStores],
+  );
+
   // Show store selection prompt if no store is selected
   if (!currentStoreId) {
     return (
-      <StoreSelectionPrompt
-        stores={userStores}
-        loading={storesLoading}
-        onSelect={handleStoreSelect}
-      />
+      <StoreSubscriptionContext.Provider value={subscriptionContextValue}>
+        <StoreSelectionPrompt
+          stores={userStores}
+          loading={storesLoading}
+          onSelect={handleStoreSelect}
+          storeCount={storeCount}
+          maxStores={subscriptionInfo?.maxStores ?? null}
+          hasActiveSubscription={
+            subscriptionInfo?.hasActiveSubscription ?? false
+          }
+          onStoreCreated={handleStoreCreatedFromPrompt}
+        />
+      </StoreSubscriptionContext.Provider>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Desktop Sidebar */}
-      <StoreAdminSidebar />
+    <StoreSubscriptionContext.Provider value={subscriptionContextValue}>
+      <div className="flex h-screen overflow-hidden">
+        {/* Desktop Sidebar */}
+        <StoreAdminSidebar />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
-        <StoreAdminHeader
-          stores={userStores}
-          currentStoreId={currentStoreId}
-          onStoreChange={handleStoreSelect}
-        />
+        {/* Main Content Area */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Header */}
+          <StoreAdminHeader
+            stores={userStores}
+            currentStoreId={currentStoreId}
+            onStoreChange={handleStoreSelect}
+          />
 
-        {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </StoreSubscriptionContext.Provider>
   );
 }

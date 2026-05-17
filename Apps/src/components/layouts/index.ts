@@ -2,6 +2,7 @@
  * Layout Components - Barrel Export
  */
 
+export { DashboardHeader } from "./DashboardHeader";
 export {
   StoreAdminSidebar,
   StoreAdminMobileSidebar,

@@ -130,4 +130,18 @@ export interface InventoryMovement {
   quantity_change: number;
   reason: string | null;
   created_at: string;
+  variant?: {
+    id: number;
+    title: string;
+    sku: string;
+    product: {
+      id: number;
+      name: string;
+    };
+  };
+  actor?: {
+    id: number;
+    name: string;
+    email: string;
+  };
 }

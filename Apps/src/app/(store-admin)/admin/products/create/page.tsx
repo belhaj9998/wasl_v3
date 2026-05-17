@@ -2,15 +2,17 @@
 
 /**
  * Product Create Page
- * Renders the ProductForm in create mode.
+ * Renders the ProductForm in create mode with tabbed interface.
+ * This is an alias for /products/new.
  *
- * Requirements: 7.2, 21.1, 21.2
+ * Requirements: 9.4, 9.5, 6.6
  */
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { ProductForm } from "@/components/products/ProductForm";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,8 @@ export default function ProductCreatePage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { currentStoreId } = useStore();
+  const t = useTranslations("products");
+  const tSuccess = useTranslations("success");
 
   const { items: categories } = useAppSelector((state) => state.categories);
 
@@ -51,6 +55,7 @@ export default function ProductCreatePage() {
       compare_at_price: data.compare_at_price || undefined,
       cost_price: data.cost_price || undefined,
       track_inventory: data.track_inventory,
+      status: data.status || "DRAFT",
       category_ids:
         data.category_ids.length > 0 ? data.category_ids : undefined,
     };
@@ -59,7 +64,7 @@ export default function ProductCreatePage() {
       createProduct({ storeId: currentStoreId, payload }),
     ).unwrap();
 
-    toast.success("تم إنشاء المنتج بنجاح");
+    toast.success(tSuccess("product.created"));
     router.push(ROUTES.STORE_ADMIN.PRODUCT_EDIT(result.id));
   };
 
@@ -71,13 +76,15 @@ export default function ProductCreatePage() {
           variant="ghost"
           size="icon"
           onClick={() => router.push(ROUTES.STORE_ADMIN.PRODUCTS)}
+          aria-label={t("backToProducts")}
         >
           <ArrowRight className="h-5 w-5" />
-          <span className="sr-only">العودة للمنتجات</span>
         </Button>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">إضافة منتج جديد</h2>
-          <p className="text-muted-foreground">أنشئ منتجاً جديداً في متجرك</p>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {t("createTitle")}
+          </h1>
+          <p className="text-muted-foreground">{t("createDescription")}</p>
         </div>
       </div>
 

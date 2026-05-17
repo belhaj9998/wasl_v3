@@ -32,6 +32,7 @@ import { STORAGE_KEYS } from "@/lib/constants/storage";
 import { ROUTES } from "@/lib/constants/routes";
 import { persistLocale } from "@/lib/i18n/config";
 import { useTheme } from "@/hooks/useTheme";
+import { useSessionValidator } from "@/hooks/useSessionValidator";
 import type { SupportedLocale } from "@/lib/i18n/config";
 
 /**
@@ -50,6 +51,8 @@ export default function PlatformLayout({
   const t = useTranslations("nav");
   const tAuth = useTranslations("auth");
   const tLang = useTranslations("language");
+  const tBrand = useTranslations("brand");
+  const tA11y = useTranslations("accessibility.buttons");
 
   const sidebarCollapsed = useAppSelector((state) => state.ui.sidebarCollapsed);
   const locale = useAppSelector((state) => state.ui.locale);
@@ -57,6 +60,9 @@ export default function PlatformLayout({
   const authLoading = useAppSelector((state) => state.auth.loading);
 
   const { toggleTheme, isDark } = useTheme();
+
+  // Validate session on mount — calls /auth/me and redirects on failure
+  useSessionValidator();
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -162,7 +168,9 @@ export default function PlatformLayout({
         <SheetContent side="right" className="w-72 p-0">
           <SheetHeader className="border-b px-4 h-16 flex flex-row items-center gap-3">
             <Logo size="sm" />
-            <SheetTitle className="text-lg font-semibold">وصل</SheetTitle>
+            <SheetTitle className="text-lg font-semibold">
+              {tBrand("name")}
+            </SheetTitle>
             <SheetDescription className="sr-only">
               Platform navigation menu
             </SheetDescription>
@@ -182,7 +190,7 @@ export default function PlatformLayout({
               size="icon"
               className="md:hidden"
               onClick={() => setMobileOpen(true)}
-              aria-label="Open navigation menu"
+              aria-label={tA11y("openMenu")}
             >
               <Menu className="h-5 w-5" />
             </Button>
@@ -210,7 +218,7 @@ export default function PlatformLayout({
               size="icon"
               onClick={toggleTheme}
               aria-label={
-                isDark ? "Switch to light mode" : "Switch to dark mode"
+                isDark ? tA11y("toggleThemeLight") : tA11y("toggleThemeDark")
               }
             >
               {isDark ? (
@@ -227,7 +235,7 @@ export default function PlatformLayout({
                   variant="ghost"
                   size="icon"
                   className="rounded-full"
-                  aria-label="User menu"
+                  aria-label={tA11y("userMenu")}
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="text-xs">

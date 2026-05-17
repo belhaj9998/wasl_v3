@@ -8,17 +8,23 @@ export interface FormErrorProps {
   message?: string;
   /** Additional CSS classes */
   className?: string;
+  /** Optional id for aria-describedby binding */
+  id?: string;
 }
 
 /**
  * FormError — Inline field error display component.
  * Renders a red error message below a form field when validation fails.
  */
-export function FormError({ message, className }: FormErrorProps) {
+export function FormError({ message, className, id }: FormErrorProps) {
   if (!message) return null;
 
   return (
-    <p role="alert" className={cn("text-sm text-destructive mt-1", className)}>
+    <p
+      id={id}
+      role="alert"
+      className={cn("text-sm text-destructive mt-1", className)}
+    >
       {message}
     </p>
   );

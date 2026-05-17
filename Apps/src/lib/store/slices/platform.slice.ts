@@ -1,6 +1,9 @@
 import { createSlice } from "@reduxjs/toolkit";
 import type { PaginationMeta, Plan, Store, Subscription, User } from "@/types";
-import type { DashboardStats } from "@/lib/api/services/platform.service";
+import type {
+  DashboardStats,
+  GrowthData,
+} from "@/lib/api/services/platform.service";
 import {
   fetchPlatformUsers,
   updatePlatformUser,
@@ -15,6 +18,7 @@ import {
   fetchPlatformSubscriptions,
   updatePlatformSubscription,
   fetchPlatformStats,
+  fetchPlatformGrowth,
 } from "./platform.thunks";
 
 export interface PlatformState {
@@ -40,6 +44,9 @@ export interface PlatformState {
   stats: DashboardStats | null;
   statsLoading: boolean;
   statsError: string | null;
+  growth: GrowthData[] | null;
+  growthLoading: boolean;
+  growthError: string | null;
 }
 
 const initialState: PlatformState = {
@@ -50,6 +57,9 @@ const initialState: PlatformState = {
   stats: null,
   statsLoading: false,
   statsError: null,
+  growth: null,
+  growthLoading: false,
+  growthError: null,
 };
 
 const platformSlice = createSlice({
@@ -178,6 +188,20 @@ const platformSlice = createSlice({
         state.statsLoading = false;
         state.statsError =
           (action.payload as string) || "Failed to fetch platform stats";
+      })
+      // --- Growth ---
+      .addCase(fetchPlatformGrowth.pending, (state) => {
+        state.growthLoading = true;
+        state.growthError = null;
+      })
+      .addCase(fetchPlatformGrowth.fulfilled, (state, action) => {
+        state.growthLoading = false;
+        state.growth = action.payload;
+      })
+      .addCase(fetchPlatformGrowth.rejected, (state, action) => {
+        state.growthLoading = false;
+        state.growthError =
+          (action.payload as string) || "Failed to fetch growth data";
       });
   },
 });

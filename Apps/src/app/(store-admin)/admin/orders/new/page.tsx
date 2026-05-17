@@ -2,17 +2,30 @@
 
 /**
  * Store Admin — Manual Order Creation Page
- * Allows store admins to create orders manually with line items,
- * shipping address, and payment method selection.
+ * Allows store admins to create orders manually with:
+ * - Customer search by name/phone/email
+ * - Product selection (1-100 items) with quantity
+ * - Shipping address (full_name, city, street_line_1 required)
+ * - Payment method selection (CASH_ON_DELIVERY, BANK_TRANSFER, MANUAL)
+ * - Order total calculation
  *
- * Requirements: 9.4, 9.7
+ * Requirements: 9.7
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2, ArrowLeft, Package } from "lucide-react";
+import { useTranslations, useLocale } from "next-intl";
+import {
+  Plus,
+  Trash2,
+  ArrowLeft,
+  Package,
+  Search,
+  User,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/forms/FormField";
@@ -28,9 +41,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { FormError } from "@/components/forms/FormError";
 
-import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
+import { useAppDispatch } from "@/lib/store/hooks";
 import { useStore } from "@/hooks/useStore";
 import { createOrder } from "@/lib/store/slices/orders.thunks";
 import {
@@ -38,8 +52,10 @@ import {
   type ManualOrderFormData,
 } from "@/lib/validators/order.schema";
 import { productService } from "@/lib/api/services/product.service";
-import { inventoryService } from "@/lib/api/services/inventory.service";
-import type { Product, ProductVariant } from "@/types";
+import { customerService } from "@/lib/api/services/customer.service";
+import { formatCurrencyLYD } from "@/lib/i18n/formatters";
+import type { SupportedLocale } from "@/lib/i18n/config";
+import type { Product, ProductVariant, Customer } from "@/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,30 +63,31 @@ interface ProductWithVariants extends Product {
   variants: ProductVariant[];
 }
 
-// ─── Payment Method Options ──────────────────────────────────────────────────
-
-const PAYMENT_METHODS = [
-  {
-    value: "CASH_ON_DELIVERY",
-    label: { ar: "الدفع عند الاستلام", en: "Cash on Delivery" },
-  },
-  { value: "CARD", label: { ar: "بطاقة ائتمان", en: "Card" } },
-  { value: "BANK_TRANSFER", label: { ar: "تحويل بنكي", en: "Bank Transfer" } },
-  { value: "WALLET", label: { ar: "محفظة إلكترونية", en: "Wallet" } },
-  { value: "MANUAL", label: { ar: "يدوي", en: "Manual" } },
-] as const;
-
 // ─── Order Creation Page ─────────────────────────────────────────────────────
 
 export default function NewOrderPage() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const { currentStoreId } = useStore();
-  const locale = useAppSelector((state) => state.ui.locale);
+  const t = useTranslations("orders.newOrder");
+  const tCommon = useTranslations("common");
+  const tA11y = useTranslations("accessibility.buttons");
+  const locale = useLocale() as SupportedLocale;
 
-  // Products state for selection
+  // Products state
   const [products, setProducts] = useState<ProductWithVariants[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
+
+  // Customer search state
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerResults, setCustomerResults] = useState<Customer[]>([]);
+  const [customerSearching, setCustomerSearching] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
+  const [showCustomerResults, setShowCustomerResults] = useState(false);
+
+  // Error state
   const [serverErrors, setServerErrors] = useState<string[]>([]);
   const [inventoryErrors, setInventoryErrors] = useState<
     Record<number, string>
@@ -122,25 +139,98 @@ export default function NewOrderPage() {
       setProductsLoading(true);
       try {
         const response = await productService.getAll(currentStoreId, {
-          limit: 100,
+          limit: "100",
           status: "ACTIVE",
-        } as Record<string, unknown>);
-        // Filter products that have variants
+        } as Record<string, string>);
         const productsWithVariants = (response.data || []).filter(
           (p: Product) => p.variants && p.variants.length > 0,
         ) as ProductWithVariants[];
         setProducts(productsWithVariants);
       } catch {
-        toast.error(
-          locale === "ar" ? "فشل في تحميل المنتجات" : "Failed to load products",
-        );
+        toast.error(t("failedToLoadProducts"));
       } finally {
         setProductsLoading(false);
       }
     };
 
     fetchProducts();
-  }, [currentStoreId, locale]);
+  }, [currentStoreId, t]);
+
+  // ─── Customer Search ─────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!currentStoreId || customerSearch.length < 2) {
+      setCustomerResults([]);
+      setShowCustomerResults(false);
+      return;
+    }
+
+    const debounceTimer = setTimeout(async () => {
+      setCustomerSearching(true);
+      try {
+        const response = await customerService.getAll(currentStoreId, {
+          search: customerSearch,
+          limit: "10",
+        } as Record<string, string>);
+        setCustomerResults(response.data || []);
+        setShowCustomerResults(true);
+      } catch {
+        setCustomerResults([]);
+      } finally {
+        setCustomerSearching(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [customerSearch, currentStoreId]);
+
+  const handleSelectCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setShowCustomerResults(false);
+    setCustomerSearch("");
+
+    // Pre-fill form fields from customer data
+    const fullName = [customer.first_name, customer.last_name]
+      .filter(Boolean)
+      .join(" ");
+    setValue("customer_name", fullName);
+    setValue("customer_phone", customer.phone || "");
+    setValue("customer_email", customer.email || "");
+    setValue("customer_id", customer.id);
+
+    // Pre-fill shipping address name
+    setValue("shipping_address.full_name", fullName);
+  };
+
+  const handleClearCustomer = () => {
+    setSelectedCustomer(null);
+    setValue("customer_id", undefined);
+    setValue("customer_name", "");
+    setValue("customer_phone", "");
+    setValue("customer_email", "");
+  };
+
+  // ─── Order Total Calculation ─────────────────────────────────────────────
+
+  const orderTotal = useMemo(() => {
+    let total = 0;
+    for (const item of watchedItems) {
+      if (!item.product_id || !item.variant_id) continue;
+      const product = products.find((p) => p.id === item.product_id);
+      if (!product) continue;
+      const variant = product.variants.find((v) => v.id === item.variant_id);
+      if (!variant) continue;
+      const price = parseFloat(variant.price || product.base_price || "0");
+      total += price * (item.quantity || 0);
+    }
+    return total;
+  }, [watchedItems, products]);
+
+  const itemCount = useMemo(() => {
+    return watchedItems.filter(
+      (item) => item.product_id > 0 && item.variant_id > 0,
+    ).length;
+  }, [watchedItems]);
 
   // ─── Inventory Validation ────────────────────────────────────────────────
 
@@ -156,16 +246,17 @@ export default function NewOrderPage() {
         if (!item.variant_id || item.variant_id === 0) continue;
 
         try {
+          const { inventoryService } =
+            await import("@/lib/api/services/inventory.service");
           const response = await inventoryService.getByVariant(
             currentStoreId,
             item.variant_id,
           );
           const inventory = response.data;
           if (inventory && inventory.available_quantity < item.quantity) {
-            newInventoryErrors[i] =
-              locale === "ar"
-                ? `الكمية المتاحة: ${inventory.available_quantity} فقط`
-                : `Only ${inventory.available_quantity} available`;
+            newInventoryErrors[i] = t("availableOnly", {
+              count: inventory.available_quantity,
+            });
             allSufficient = false;
           }
         } catch {
@@ -176,7 +267,7 @@ export default function NewOrderPage() {
       setInventoryErrors(newInventoryErrors);
       return allSufficient;
     },
-    [currentStoreId, locale],
+    [currentStoreId, t],
   );
 
   // ─── Form Submission ─────────────────────────────────────────────────────
@@ -190,11 +281,7 @@ export default function NewOrderPage() {
     // Validate inventory availability before submission
     const inventoryValid = await validateInventory(data.items);
     if (!inventoryValid) {
-      setServerErrors([
-        locale === "ar"
-          ? "بعض المنتجات غير متوفرة بالكمية المطلوبة"
-          : "Some products do not have sufficient inventory",
-      ]);
+      setServerErrors([t("insufficientInventory")]);
       return;
     }
 
@@ -224,9 +311,7 @@ export default function NewOrderPage() {
         createOrder({ storeId: currentStoreId, payload }),
       ).unwrap();
 
-      toast.success(
-        locale === "ar" ? "تم إنشاء الطلب بنجاح" : "Order created successfully",
-      );
+      toast.success(t("orderCreatedSuccess"));
       router.push(`/admin/orders/${result.id}`);
     } catch (error: unknown) {
       // Handle server validation errors (422)
@@ -239,7 +324,6 @@ export default function NewOrderPage() {
         for (const err of validationErrors) {
           const fieldPath = err.path?.join(".");
           if (fieldPath) {
-            // Try to set field-level error
             try {
               setError(fieldPath as keyof ManualOrderFormData, {
                 type: "server",
@@ -258,11 +342,7 @@ export default function NewOrderPage() {
         }
       } else {
         const message =
-          typeof error === "string"
-            ? error
-            : locale === "ar"
-              ? "فشل في إنشاء الطلب"
-              : "Failed to create order";
+          typeof error === "string" ? error : t("failedToCreateOrder");
         setServerErrors([message]);
       }
     }
@@ -275,11 +355,19 @@ export default function NewOrderPage() {
     return product?.variants?.filter((v) => v.is_active) || [];
   };
 
+  const getItemPrice = (index: number): string | null => {
+    const item = watchedItems[index];
+    if (!item?.product_id || !item?.variant_id) return null;
+    const product = products.find((p) => p.id === item.product_id);
+    if (!product) return null;
+    const variant = product.variants.find((v) => v.id === item.variant_id);
+    if (!variant) return null;
+    return variant.price || product.base_price || null;
+  };
+
   const handleProductChange = (index: number, productId: number) => {
     setValue(`items.${index}.product_id`, productId);
-    // Reset variant when product changes
     setValue(`items.${index}.variant_id`, 0);
-    // Clear inventory error for this item
     setInventoryErrors((prev) => {
       const next = { ...prev };
       delete next[index];
@@ -289,7 +377,6 @@ export default function NewOrderPage() {
 
   const handleVariantChange = (index: number, variantId: number) => {
     setValue(`items.${index}.variant_id`, variantId);
-    // Clear inventory error for this item
     setInventoryErrors((prev) => {
       const next = { ...prev };
       delete next[index];
@@ -309,19 +396,13 @@ export default function NewOrderPage() {
           variant="ghost"
           size="icon"
           onClick={() => router.push("/admin/orders")}
-          aria-label={locale === "ar" ? "العودة للطلبات" : "Back to orders"}
+          aria-label={tA11y("backToOrders")}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            {locale === "ar" ? "إنشاء طلب يدوي" : "Create Manual Order"}
-          </h2>
-          <p className="text-muted-foreground">
-            {locale === "ar"
-              ? "أضف طلب جديد يدوياً مع تفاصيل المنتجات والشحن"
-              : "Add a new order manually with product and shipping details"}
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{t("title")}</h1>
+          <p className="text-muted-foreground">{t("description")}</p>
         </div>
       </div>
 
@@ -329,146 +410,283 @@ export default function NewOrderPage() {
       <FormSummaryError errors={serverErrors} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* ─── Customer Search Section ────────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              {t("customerSection")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {selectedCustomer ? (
+              <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-4">
+                <div>
+                  <p className="font-medium">
+                    {selectedCustomer.first_name} {selectedCustomer.last_name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedCustomer.email}
+                    {selectedCustomer.phone && ` • ${selectedCustomer.phone}`}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearCustomer}
+                  aria-label={t("clearCustomer")}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="relative">
+                <Label htmlFor="customer-search">{t("searchCustomer")}</Label>
+                <div className="relative mt-1.5">
+                  <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="customer-search"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder={t("searchCustomerPlaceholder")}
+                    className="ps-9"
+                    aria-expanded={showCustomerResults}
+                    aria-controls="customer-search-results"
+                    role="combobox"
+                    aria-autocomplete="list"
+                  />
+                  {customerSearching && (
+                    <span className="absolute end-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                      {t("searching")}
+                    </span>
+                  )}
+                </div>
+
+                {/* Search Results Dropdown */}
+                {showCustomerResults && customerResults.length > 0 && (
+                  <ul
+                    id="customer-search-results"
+                    role="listbox"
+                    className="absolute z-10 mt-1 w-full rounded-md border bg-popover shadow-md"
+                  >
+                    {customerResults.map((customer) => (
+                      <li
+                        key={customer.id}
+                        role="option"
+                        aria-selected={false}
+                        className="cursor-pointer px-4 py-2 hover:bg-accent focus:bg-accent"
+                        onClick={() => handleSelectCustomer(customer)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            handleSelectCustomer(customer);
+                          }
+                        }}
+                        tabIndex={0}
+                      >
+                        <p className="font-medium">
+                          {customer.first_name} {customer.last_name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {customer.email}
+                          {customer.phone && ` • ${customer.phone}`}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {showCustomerResults &&
+                  customerResults.length === 0 &&
+                  !customerSearching && (
+                    <div className="absolute z-10 mt-1 w-full rounded-md border bg-popover p-3 text-center text-sm text-muted-foreground shadow-md">
+                      {t("noCustomerFound")}
+                    </div>
+                  )}
+              </div>
+            )}
+
+            {/* Manual customer info fields (shown when no customer selected) */}
+            {!selectedCustomer && (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {t("orEnterManually")}
+                </p>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={control}
+                    name="customer_name"
+                    label={t("customerName")}
+                    placeholder={t("customerName")}
+                  />
+                  <FormField
+                    control={control}
+                    name="customer_phone"
+                    label={t("customerPhone")}
+                    placeholder={t("customerPhone")}
+                  />
+                  <FormField
+                    control={control}
+                    name="customer_email"
+                    label={t("customerEmail")}
+                    type="email"
+                    placeholder={t("customerEmail")}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ─── Line Items Section ─────────────────────────────────────── */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
-              {locale === "ar" ? "المنتجات" : "Line Items"}
+              {t("productsSection")}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start"
-              >
-                {/* Product Selection */}
-                <div className="flex-1 space-y-2">
-                  <Label>
-                    {locale === "ar" ? "المنتج" : "Product"}
-                    <span className="text-destructive ms-1">*</span>
-                  </Label>
-                  <Select
-                    value={
-                      watchedItems[index]?.product_id
-                        ? String(watchedItems[index].product_id)
-                        : ""
-                    }
-                    onValueChange={(val) =>
-                      handleProductChange(index, Number(val))
-                    }
-                    disabled={productsLoading}
-                  >
-                    <SelectTrigger
-                      className={
-                        errors.items?.[index]?.product_id
-                          ? "border-destructive"
+            {fields.map((field, index) => {
+              const itemPrice = getItemPrice(index);
+              return (
+                <div
+                  key={field.id}
+                  className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start"
+                >
+                  {/* Product Selection */}
+                  <div className="flex-1 space-y-2">
+                    <Label>
+                      {t("product")}
+                      <span className="text-destructive ms-1">*</span>
+                    </Label>
+                    <Select
+                      value={
+                        watchedItems[index]?.product_id
+                          ? String(watchedItems[index].product_id)
                           : ""
                       }
+                      onValueChange={(val) =>
+                        handleProductChange(index, Number(val))
+                      }
+                      disabled={productsLoading}
                     >
-                      <SelectValue
-                        placeholder={
-                          locale === "ar" ? "اختر منتج..." : "Select product..."
+                      <SelectTrigger
+                        className={
+                          errors.items?.[index]?.product_id
+                            ? "border-destructive"
+                            : ""
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {products.map((product) => (
-                        <SelectItem key={product.id} value={String(product.id)}>
-                          {product.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormError
-                    message={errors.items?.[index]?.product_id?.message}
-                  />
-                </div>
+                      >
+                        <SelectValue placeholder={t("selectProduct")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {products.map((product) => (
+                          <SelectItem
+                            key={product.id}
+                            value={String(product.id)}
+                          >
+                            {product.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormError
+                      message={errors.items?.[index]?.product_id?.message}
+                    />
+                  </div>
 
-                {/* Variant Selection */}
-                <div className="flex-1 space-y-2">
-                  <Label>
-                    {locale === "ar" ? "المتغير" : "Variant"}
-                    <span className="text-destructive ms-1">*</span>
-                  </Label>
-                  <Select
-                    value={
-                      watchedItems[index]?.variant_id
-                        ? String(watchedItems[index].variant_id)
-                        : ""
-                    }
-                    onValueChange={(val) =>
-                      handleVariantChange(index, Number(val))
-                    }
-                    disabled={
-                      !watchedItems[index]?.product_id ||
-                      watchedItems[index]?.product_id === 0
-                    }
-                  >
-                    <SelectTrigger
-                      className={
-                        errors.items?.[index]?.variant_id
-                          ? "border-destructive"
+                  {/* Variant Selection */}
+                  <div className="flex-1 space-y-2">
+                    <Label>
+                      {t("variant")}
+                      <span className="text-destructive ms-1">*</span>
+                    </Label>
+                    <Select
+                      value={
+                        watchedItems[index]?.variant_id
+                          ? String(watchedItems[index].variant_id)
                           : ""
                       }
+                      onValueChange={(val) =>
+                        handleVariantChange(index, Number(val))
+                      }
+                      disabled={
+                        !watchedItems[index]?.product_id ||
+                        watchedItems[index]?.product_id === 0
+                      }
                     >
-                      <SelectValue
-                        placeholder={
-                          locale === "ar"
-                            ? "اختر متغير..."
-                            : "Select variant..."
+                      <SelectTrigger
+                        className={
+                          errors.items?.[index]?.variant_id
+                            ? "border-destructive"
+                            : ""
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {getVariantsForProduct(
-                        watchedItems[index]?.product_id || 0,
-                      ).map((variant) => (
-                        <SelectItem key={variant.id} value={String(variant.id)}>
-                          {variant.title}
-                          {variant.sku ? ` (${variant.sku})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormError
-                    message={errors.items?.[index]?.variant_id?.message}
-                  />
-                </div>
+                      >
+                        <SelectValue placeholder={t("selectVariant")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getVariantsForProduct(
+                          watchedItems[index]?.product_id || 0,
+                        ).map((variant) => (
+                          <SelectItem
+                            key={variant.id}
+                            value={String(variant.id)}
+                          >
+                            {variant.title}
+                            {variant.sku ? ` (${variant.sku})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormError
+                      message={errors.items?.[index]?.variant_id?.message}
+                    />
+                  </div>
 
-                {/* Quantity */}
-                <div className="w-full sm:w-28 space-y-2">
-                  <Label>
-                    {locale === "ar" ? "الكمية" : "Qty"}
-                    <span className="text-destructive ms-1">*</span>
-                  </Label>
-                  <FormField
-                    control={control}
-                    name={`items.${index}.quantity`}
-                    label=""
-                    type="number"
-                    placeholder="1"
-                    className="[&>label]:hidden [&>label]:sr-only"
-                  />
-                  <FormError message={inventoryErrors[index]} />
-                </div>
+                  {/* Quantity */}
+                  <div className="w-full sm:w-28 space-y-2">
+                    <Label>
+                      {t("quantity")}
+                      <span className="text-destructive ms-1">*</span>
+                    </Label>
+                    <FormField
+                      control={control}
+                      name={`items.${index}.quantity`}
+                      label=""
+                      type="number"
+                      placeholder="1"
+                      className="[&>label]:hidden [&>label]:sr-only"
+                    />
+                    <FormError message={inventoryErrors[index]} />
+                  </div>
 
-                {/* Remove Button */}
-                {fields.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="mt-7 shrink-0 text-destructive hover:text-destructive"
-                    onClick={() => remove(index)}
-                    aria-label={locale === "ar" ? "حذف المنتج" : "Remove item"}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
+                  {/* Price Display */}
+                  {itemPrice && (
+                    <div className="w-full sm:w-28 space-y-2">
+                      <Label>{t("price")}</Label>
+                      <p className="flex h-10 items-center text-sm font-medium">
+                        {formatCurrencyLYD(parseFloat(itemPrice), locale)}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Remove Button */}
+                  {fields.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="mt-7 shrink-0 text-destructive hover:text-destructive"
+                      onClick={() => remove(index)}
+                      aria-label={tA11y("removeItem")}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
 
             {/* Items array-level error */}
             <FormError message={errors.items?.message} />
@@ -486,15 +704,13 @@ export default function NewOrderPage() {
                 className="gap-2"
               >
                 <Plus className="h-4 w-4" />
-                {locale === "ar" ? "إضافة منتج" : "Add Item"}
+                {t("addItem")}
               </Button>
             )}
 
             {!canAddMoreItems && (
               <p className="text-sm text-muted-foreground">
-                {locale === "ar"
-                  ? "الحد الأقصى 100 منتج لكل طلب"
-                  : "Maximum 100 items per order"}
+                {t("maxItemsReached")}
               </p>
             )}
           </CardContent>
@@ -503,103 +719,49 @@ export default function NewOrderPage() {
         {/* ─── Shipping Address Section ───────────────────────────────── */}
         <Card>
           <CardHeader>
-            <CardTitle>
-              {locale === "ar" ? "عنوان الشحن" : "Shipping Address"}
-            </CardTitle>
+            <CardTitle>{t("shippingSection")}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
             <FormField
               control={control}
               name="shipping_address.full_name"
-              label={locale === "ar" ? "الاسم الكامل" : "Full Name"}
-              placeholder={
-                locale === "ar" ? "أدخل الاسم الكامل" : "Enter full name"
-              }
+              label={t("fullName")}
+              placeholder={t("fullNamePlaceholder")}
               required
             />
             <FormField
               control={control}
               name="shipping_address.city"
-              label={locale === "ar" ? "المدينة" : "City"}
-              placeholder={locale === "ar" ? "أدخل المدينة" : "Enter city"}
+              label={t("city")}
+              placeholder={t("cityPlaceholder")}
               required
             />
             <FormField
               control={control}
               name="shipping_address.street_line_1"
-              label={locale === "ar" ? "العنوان (سطر 1)" : "Street Line 1"}
-              placeholder={
-                locale === "ar" ? "أدخل العنوان" : "Enter street address"
-              }
+              label={t("streetLine1")}
+              placeholder={t("streetLine1Placeholder")}
               required
               className="sm:col-span-2"
             />
             <FormField
               control={control}
               name="shipping_address.street_line_2"
-              label={locale === "ar" ? "العنوان (سطر 2)" : "Street Line 2"}
-              placeholder={
-                locale === "ar"
-                  ? "عنوان إضافي (اختياري)"
-                  : "Additional address (optional)"
-              }
+              label={t("streetLine2")}
+              placeholder={t("streetLine2Placeholder")}
               className="sm:col-span-2"
             />
             <FormField
               control={control}
               name="shipping_address.state"
-              label={locale === "ar" ? "المنطقة / الولاية" : "State / Region"}
-              placeholder={
-                locale === "ar" ? "المنطقة (اختياري)" : "State (optional)"
-              }
+              label={t("region")}
+              placeholder={t("regionPlaceholder")}
             />
             <FormField
               control={control}
               name="shipping_address.postal_code"
-              label={locale === "ar" ? "الرمز البريدي" : "Postal Code"}
-              placeholder={
-                locale === "ar"
-                  ? "الرمز البريدي (اختياري)"
-                  : "Postal code (optional)"
-              }
-            />
-          </CardContent>
-        </Card>
-
-        {/* ─── Customer Info Section ──────────────────────────────────── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {locale === "ar" ? "معلومات العميل" : "Customer Info"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              control={control}
-              name="customer_name"
-              label={locale === "ar" ? "اسم العميل" : "Customer Name"}
-              placeholder={
-                locale === "ar"
-                  ? "اسم العميل (اختياري)"
-                  : "Customer name (optional)"
-              }
-            />
-            <FormField
-              control={control}
-              name="customer_phone"
-              label={locale === "ar" ? "رقم الهاتف" : "Phone Number"}
-              placeholder={locale === "ar" ? "رقم الهاتف" : "Phone number"}
-            />
-            <FormField
-              control={control}
-              name="customer_email"
-              label={locale === "ar" ? "البريد الإلكتروني" : "Email"}
-              type="email"
-              placeholder={
-                locale === "ar"
-                  ? "البريد الإلكتروني (اختياري)"
-                  : "Email (optional)"
-              }
+              label={t("postalCode")}
+              placeholder={t("postalCodePlaceholder")}
             />
           </CardContent>
         </Card>
@@ -607,20 +769,28 @@ export default function NewOrderPage() {
         {/* ─── Payment Method Section ─────────────────────────────────── */}
         <Card>
           <CardHeader>
-            <CardTitle>
-              {locale === "ar" ? "طريقة الدفع" : "Payment Method"}
-            </CardTitle>
+            <CardTitle>{t("paymentSection")}</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
               control={control}
               name="payment_method"
-              label={locale === "ar" ? "طريقة الدفع" : "Payment Method"}
+              label={t("paymentMethod")}
               type="select"
-              options={PAYMENT_METHODS.map((m) => ({
-                value: m.value,
-                label: m.label[locale],
-              }))}
+              options={[
+                {
+                  value: "CASH_ON_DELIVERY",
+                  label: t("cashOnDelivery"),
+                },
+                {
+                  value: "BANK_TRANSFER",
+                  label: t("bankTransfer"),
+                },
+                {
+                  value: "MANUAL",
+                  label: t("manual"),
+                },
+              ]}
             />
           </CardContent>
         </Card>
@@ -628,20 +798,38 @@ export default function NewOrderPage() {
         {/* ─── Notes Section ──────────────────────────────────────────── */}
         <Card>
           <CardHeader>
-            <CardTitle>{locale === "ar" ? "ملاحظات" : "Notes"}</CardTitle>
+            <CardTitle>{t("notesSection")}</CardTitle>
           </CardHeader>
           <CardContent>
             <FormField
               control={control}
               name="notes_from_customer"
-              label={locale === "ar" ? "ملاحظات الطلب" : "Order Notes"}
+              label={t("orderNotes")}
               type="textarea"
-              placeholder={
-                locale === "ar"
-                  ? "أضف ملاحظات للطلب (اختياري)"
-                  : "Add order notes (optional)"
-              }
+              placeholder={t("orderNotesPlaceholder")}
             />
+          </CardContent>
+        </Card>
+
+        {/* ─── Order Summary ──────────────────────────────────────────── */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("orderSummary")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {t("items", { count: itemCount })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2">
+                <span className="font-medium">{t("total")}</span>
+                <span className="text-lg font-bold">
+                  {formatCurrencyLYD(orderTotal, locale)}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -652,10 +840,10 @@ export default function NewOrderPage() {
             variant="outline"
             onClick={() => router.push("/admin/orders")}
           >
-            {locale === "ar" ? "إلغاء" : "Cancel"}
+            {tCommon("cancel")}
           </Button>
           <SubmitButton isSubmitting={isSubmitting}>
-            {locale === "ar" ? "إنشاء الطلب" : "Create Order"}
+            {t("createOrder")}
           </SubmitButton>
         </div>
       </form>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   ArrowRight,
   Mail,
@@ -62,6 +63,7 @@ export default function PlatformUserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const tA11y = useTranslations("accessibility.buttons");
 
   const currentUser = useAppSelector((state) => state.auth.user);
   const userId = Number(params.id);
@@ -227,7 +229,7 @@ export default function PlatformUserDetailPage() {
             variant="ghost"
             size="icon"
             onClick={() => router.push(ROUTES.PLATFORM.USERS)}
-            aria-label="العودة"
+            aria-label={tA11y("backToList")}
           >
             <ArrowRight className="h-5 w-5" />
           </Button>

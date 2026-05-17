@@ -1,5 +1,7 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { Coupon, PaginationMeta } from "@/types";
+import type { CacheEntry } from "../cache";
+import { createCacheEntry } from "../cache";
 import {
   fetchCoupons,
   fetchCouponById,
@@ -14,6 +16,8 @@ export interface CouponsState {
   meta: PaginationMeta | null;
   loading: boolean;
   error: string | null;
+  _rollbackSnapshot: Coupon[] | null;
+  listCache: CacheEntry<{ data: Coupon[]; meta: PaginationMeta }> | null;
 }
 
 const initialState: CouponsState = {
@@ -22,6 +26,8 @@ const initialState: CouponsState = {
   meta: null,
   loading: false,
   error: null,
+  _rollbackSnapshot: null,
+  listCache: null,
 };
 
 const couponsSlice = createSlice({
@@ -29,6 +35,32 @@ const couponsSlice = createSlice({
   initialState,
   reducers: {
     reset: () => initialState,
+    invalidateListCache(state) {
+      state.listCache = null;
+    },
+    optimisticDelete(state, action: PayloadAction<number>) {
+      state._rollbackSnapshot = state.items;
+      state.items = state.items.filter((c) => c.id !== action.payload);
+    },
+    optimisticStatusChange(
+      state,
+      action: PayloadAction<{ id: number; is_active: boolean }>,
+    ) {
+      state._rollbackSnapshot = state.items.map((c) => ({ ...c }));
+      const index = state.items.findIndex((c) => c.id === action.payload.id);
+      if (index !== -1) {
+        state.items[index] = {
+          ...state.items[index],
+          is_active: action.payload.is_active,
+        };
+      }
+    },
+    rollback(state) {
+      if (state._rollbackSnapshot) {
+        state.items = state._rollbackSnapshot;
+        state._rollbackSnapshot = null;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -41,6 +73,10 @@ const couponsSlice = createSlice({
         state.loading = false;
         state.items = action.payload.data;
         state.meta = action.payload.meta;
+        state.listCache = createCacheEntry(
+          { data: action.payload.data, meta: action.payload.meta },
+          action.meta.arg.params,
+        );
       })
       .addCase(fetchCoupons.rejected, (state, action) => {
         state.loading = false;
@@ -110,5 +146,11 @@ const couponsSlice = createSlice({
   },
 });
 
-export const { reset: resetCoupons } = couponsSlice.actions;
+export const {
+  reset: resetCoupons,
+  invalidateListCache: invalidateCouponsListCache,
+  optimisticDelete: optimisticDeleteCoupon,
+  optimisticStatusChange: optimisticCouponStatusChange,
+  rollback: rollbackCoupons,
+} = couponsSlice.actions;
 export default couponsSlice.reducer;

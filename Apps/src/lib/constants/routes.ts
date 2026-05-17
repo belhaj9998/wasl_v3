@@ -41,6 +41,7 @@ export const ROUTES = {
     COUPON_CREATE: "/admin/coupons/create",
     COUPON_DETAIL: (id: number) => `/admin/coupons/${id}`,
     INVENTORY: "/admin/inventory",
+    INVENTORY_LOW_STOCK: "/admin/inventory/low-stock",
     MEMBERS: "/admin/members",
     ROLES: "/admin/roles",
     SETTINGS: "/admin/settings",

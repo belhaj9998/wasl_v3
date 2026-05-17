@@ -3,12 +3,13 @@ import {
   verifyToken,
   resolveStoreContext,
 } from "../middlewares/auth.Middleware";
+import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as uploadController from "../controllers/shared/upload.Controller";
 
 const router = Router();
 
 // Apply verifyToken and resolveStoreContext to ALL upload routes
-router.use(verifyToken, resolveStoreContext);
+router.use(verifyToken, resolveStoreContext,verifyStoreSubscriptionAccess);
 
 // POST /image — upload and optimize an image
 router.post("/image", uploadController.uploadImage);

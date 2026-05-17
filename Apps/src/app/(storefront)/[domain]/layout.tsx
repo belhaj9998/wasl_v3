@@ -15,6 +15,7 @@ import { storefrontService } from "@/lib/api/services/storefront.service";
 import { StorefrontHeader } from "@/components/layouts/StorefrontHeader";
 import { StorefrontFooter } from "@/components/layouts/StorefrontFooter";
 import { EmptyState } from "@/components/shared";
+import { MiniCartPopup } from "@/components/shared/MiniCartPopup";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Store, Category } from "@/types";
 
@@ -133,6 +134,7 @@ export default function StorefrontLayout({
       <StorefrontHeader store={store} categories={categories} domain={domain} />
       <main className="flex-1">{children}</main>
       <StorefrontFooter store={store} domain={domain} />
+      <MiniCartPopup />
     </div>
   );
 }

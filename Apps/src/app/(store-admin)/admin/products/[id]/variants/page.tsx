@@ -564,7 +564,7 @@ export default function ProductVariantsPage() {
           {options.map((option) => (
             <div key={option.id} className="rounded-lg border p-4 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-medium">{option.name}</h4>
+                <h3 className="font-medium">{option.name}</h3>
                 <Button
                   variant="ghost"
                   size="icon"

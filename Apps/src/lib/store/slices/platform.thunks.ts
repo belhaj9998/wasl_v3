@@ -248,3 +248,21 @@ export const fetchPlatformStats = createAsyncThunk(
     }
   },
 );
+
+// --- Dashboard Growth ---
+
+export const fetchPlatformGrowth = createAsyncThunk(
+  "platform/fetchGrowth",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await platformService.dashboard.getGrowth({
+        period: "monthly",
+      });
+      return response.data.growth;
+    } catch (error: unknown) {
+      return rejectWithValue(
+        extractErrorMessage(error, "Failed to fetch platform growth data"),
+      );
+    }
+  },
+);

@@ -3,13 +3,15 @@
 /**
  * Store Admin Dashboard Page
  * Displays store-specific statistics: overview cards, recent orders, and low-stock alerts.
+ * Each section loads independently with its own skeleton and error handling.
+ * Includes a DashboardHeader with welcome message and Create Store button.
  *
- * Requirements: 6.3
+ * Requirements: 1.1, 1.3, 4.3, 6.1, 6.4, 13.1, 13.2, 13.3, 13.6, 13.7
  */
 
 import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import dynamic from "next/dynamic";
 import {
   ShoppingCart,
   DollarSign,
@@ -18,24 +20,47 @@ import {
   TrendingUp,
   AlertTriangle,
   Package,
+  RefreshCw,
 } from "lucide-react";
 
-import { useStore } from "@/hooks";
+import { useStore, useAuth, useStoreSubscription } from "@/hooks";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
-import type { ApiResponse, PaginatedResponse, Order } from "@/types";
+import { toastSuccess } from "@/lib/toast/toastManager";
+import type { ApiResponse, Store } from "@/types";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/shared";
+import { Button } from "@/components/ui/button";
+import { DashboardHeader } from "@/components/layouts/DashboardHeader";
+
+import { RecentOrders } from "./RecentOrders";
+import { LowStockAlerts } from "./LowStockAlerts";
+
+// Dynamic import for SalesChart (recharts is > 50KB)
+const SalesChart = dynamic(() => import("./SalesChart"), {
+  ssr: false,
+  loading: () => <SalesChartLoadingSkeleton />,
+});
+
+function SalesChartLoadingSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <Skeleton className="h-5 w-36" />
+        <div className="flex gap-1">
+          <Skeleton className="h-8 w-16 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-md" />
+          <Skeleton className="h-8 w-16 rounded-md" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Skeleton className="h-[300px] w-full rounded-md" />
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -47,21 +72,6 @@ interface DashboardOverview {
   revenue_today: number;
   pending_orders: number;
   average_order_value: number;
-}
-
-interface SalesDataPoint {
-  date: string;
-  orders_count: number;
-  revenue: number;
-}
-
-interface InventoryAlert {
-  variant_id: number;
-  product_name: string;
-  variant_title: string;
-  sku: string;
-  available_quantity: number;
-  low_stock_threshold: number;
 }
 
 // ─── Loading Skeletons ───────────────────────────────────────────────────────
@@ -78,43 +88,6 @@ function StatsCardSkeleton() {
         <Skeleton className="h-3 w-20" />
       </CardContent>
     </Card>
-  );
-}
-
-function RecentOrdersSkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center justify-between py-2">
-          <div className="space-y-1">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-32" />
-          </div>
-          <div className="text-end space-y-1">
-            <Skeleton className="h-4 w-16" />
-            <Skeleton className="h-5 w-20" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function InventoryAlertsSkeleton() {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center justify-between py-2">
-          <div className="space-y-1">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-24" />
-          </div>
-          <div className="text-end">
-            <Skeleton className="h-5 w-16" />
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -150,49 +123,48 @@ function StatsCard({ title, value, description, icon }: StatsCardProps) {
 
 export default function StoreAdminDashboardPage() {
   const t = useTranslations("storeDashboard");
+  const tCreateStore = useTranslations("createStore");
   const { currentStoreId } = useStore();
+  const { user } = useAuth();
+  const { storeCount, maxStores, hasActiveSubscription, refreshStores } =
+    useStoreSubscription();
 
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [inventoryAlerts, setInventoryAlerts] = useState<InventoryAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = useCallback(async () => {
+  const fetchOverview = useCallback(async () => {
     if (!currentStoreId) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const [overviewRes, ordersRes, alertsRes] = await Promise.all([
-        apiClient<ApiResponse<{ overview: DashboardOverview }>>(
-          `${API_ENDPOINTS.STORE.DASHBOARD(currentStoreId)}/overview`,
-          { storeId: currentStoreId },
-        ),
-        apiClient<PaginatedResponse<Order>>(
-          `${API_ENDPOINTS.STORE.ORDERS(currentStoreId)}?limit=5&sortBy=created_at&sortOrder=desc`,
-          { storeId: currentStoreId },
-        ),
-        apiClient<PaginatedResponse<InventoryAlert>>(
-          `${API_ENDPOINTS.STORE.DASHBOARD(currentStoreId)}/inventory-alerts?limit=5`,
-          { storeId: currentStoreId },
-        ),
-      ]);
-
+      const overviewRes = await apiClient<
+        ApiResponse<{ overview: DashboardOverview }>
+      >(`${API_ENDPOINTS.STORE.DASHBOARD(currentStoreId)}/overview`, {
+        storeId: currentStoreId,
+      });
       setOverview(overviewRes.data.overview);
-      setRecentOrders(ordersRes.data);
-      setInventoryAlerts(alertsRes.data);
     } catch {
-      setError("Failed to load dashboard data");
+      setError(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [currentStoreId]);
+  }, [currentStoreId, t]);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    fetchOverview();
+  }, [fetchOverview]);
+
+  // Handle store creation: re-fetch store list and show success toast (auto-dismiss 5s)
+  const handleStoreCreated = useCallback(
+    async (_newStore: Store) => {
+      await refreshStores();
+      toastSuccess(tCreateStore("successToast"));
+    },
+    [refreshStores, tCreateStore],
+  );
 
   // ─── Overview Stats Cards ──────────────────────────────────────────────────
 
@@ -204,6 +176,26 @@ export default function StoreAdminDashboardPage() {
             <StatsCardSkeleton key={i} />
           ))}
         </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <AlertTriangle className="h-8 w-8 mb-2" />
+            <p className="text-sm mb-3">{error}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchOverview}
+              aria-label={t("retry")}
+            >
+              <RefreshCw className="h-4 w-4 me-1" />
+              {t("retry")}
+            </Button>
+          </CardContent>
+        </Card>
       );
     }
 
@@ -261,174 +253,30 @@ export default function StoreAdminDashboardPage() {
     );
   }
 
-  // ─── Recent Orders ─────────────────────────────────────────────────────────
-
-  function renderRecentOrders() {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">{t("recentOrders")}</CardTitle>
-            <CardDescription>{t("ordersToday")}</CardDescription>
-          </div>
-          <Link
-            href="/admin/orders"
-            className="text-sm text-primary hover:underline"
-          >
-            {t("viewAll")}
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <RecentOrdersSkeleton />
-          ) : recentOrders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <ShoppingCart className="h-10 w-10 mb-2" />
-              <p className="text-sm">{t("noRecentOrders")}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <Link
-                  key={order.id}
-                  href={`/admin/orders/${order.id}`}
-                  className="flex items-center justify-between py-2 px-2 rounded-md hover:bg-muted/50 transition-colors"
-                >
-                  <div className="space-y-0.5">
-                    <p className="text-sm font-medium">#{order.order_number}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {order.customer_name}
-                    </p>
-                  </div>
-                  <div className="text-end space-y-0.5">
-                    <p className="text-sm font-medium">
-                      {formatCurrency(order.total)}
-                    </p>
-                    <StatusBadge
-                      label={order.status}
-                      variant={getOrderStatusVariant(order.status)}
-                    />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ─── Inventory Alerts ──────────────────────────────────────────────────────
-
-  function renderInventoryAlerts() {
-    return (
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-lg">{t("inventoryAlerts")}</CardTitle>
-            <CardDescription>{t("lowStockItems")}</CardDescription>
-          </div>
-          <Link
-            href="/admin/inventory"
-            className="text-sm text-primary hover:underline"
-          >
-            {t("viewAll")}
-          </Link>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <InventoryAlertsSkeleton />
-          ) : inventoryAlerts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <AlertTriangle className="h-10 w-10 mb-2" />
-              <p className="text-sm">{t("noAlerts")}</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {inventoryAlerts.map((alert) => (
-                <div
-                  key={alert.variant_id}
-                  className="flex items-center justify-between py-2 px-2 rounded-md"
-                >
-                  <div className="space-y-0.5 min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
-                      {alert.product_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {alert.variant_title}
-                      {alert.sku && ` · ${alert.sku}`}
-                    </p>
-                  </div>
-                  <div className="text-end ms-3">
-                    <Badge variant="destructive" className="text-xs">
-                      {alert.available_quantity} / {alert.low_stock_threshold}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // ─── Error State ───────────────────────────────────────────────────────────
-
-  if (error && !loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-        <AlertTriangle className="h-12 w-12 mb-4" />
-        <p className="text-lg font-medium mb-2">{error}</p>
-        <button
-          onClick={fetchDashboardData}
-          className="text-sm text-primary hover:underline"
-        >
-          {t("viewAll")}
-        </button>
-      </div>
-    );
-  }
-
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
+      {/* Dashboard Header with welcome message and Create Store button */}
+      <DashboardHeader
+        userName={user?.name?.split(" ")[0] ?? null}
+        storeCount={storeCount}
+        maxStores={maxStores}
+        hasActiveSubscription={hasActiveSubscription}
+        onStoreCreated={handleStoreCreated}
+      />
+
       {/* Overview Stats */}
       {renderOverviewCards()}
 
-      {/* Recent Orders & Inventory Alerts */}
+      {/* Sales Chart — loads independently with its own skeleton */}
+      <SalesChart />
+
+      {/* Recent Orders & Inventory Alerts — each loads independently */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {renderRecentOrders()}
-        {renderInventoryAlerts()}
+        <RecentOrders />
+        <LowStockAlerts />
       </div>
     </div>
   );
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getOrderStatusVariant(
-  status: string,
-): "success" | "warning" | "error" | "info" | "neutral" {
-  switch (status) {
-    case "DELIVERED":
-      return "success";
-    case "CANCELED":
-    case "RETURNED":
-      return "error";
-    case "PENDING":
-    case "DRAFT":
-      return "neutral";
-    case "PROCESSING":
-    case "PREPARING":
-    case "CONFIRMED":
-      return "info";
-    case "SHIPPED":
-    case "IN_TRANSIT":
-    case "OUT_FOR_DELIVERY":
-      return "warning";
-    default:
-      return "neutral";
-  }
 }

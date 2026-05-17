@@ -24,6 +24,7 @@ import {
   Key,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { DataTable } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -79,6 +80,8 @@ function RoleDialog({
   onSubmit,
   isSubmitting,
 }: RoleDialogProps) {
+  const t = useTranslations("roles");
+  const tCommon = useTranslations("common");
   const { control, handleSubmit, reset } = useForm<RoleFormData>({
     resolver: zodResolver(roleSchema),
     defaultValues: {
@@ -106,12 +109,10 @@ function RoleDialog({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {editingRole ? "تعديل الدور" : "إنشاء دور جديد"}
+            {editingRole ? t("editTitle") : t("createTitle")}
           </DialogTitle>
           <DialogDescription>
-            {editingRole
-              ? "قم بتعديل بيانات الدور"
-              : "أدخل بيانات الدور الجديد"}
+            {editingRole ? t("editDescription") : t("createDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -119,18 +120,18 @@ function RoleDialog({
           <FormField
             control={control}
             name="name"
-            label="اسم الدور"
+            label={t("nameLabel")}
             type="text"
-            placeholder="مثال: مدير المبيعات"
+            placeholder={t("namePlaceholder")}
             required
           />
 
           <FormField
             control={control}
             name="description"
-            label="الوصف"
+            label={t("descriptionLabel")}
             type="textarea"
-            placeholder="وصف مختصر لصلاحيات هذا الدور..."
+            placeholder={t("descriptionPlaceholder")}
           />
 
           <DialogFooter>
@@ -140,10 +141,10 @@ function RoleDialog({
               onClick={() => onOpenChange(false)}
               disabled={isSubmitting}
             >
-              إلغاء
+              {tCommon("cancel")}
             </Button>
             <SubmitButton isSubmitting={isSubmitting}>
-              {editingRole ? "حفظ" : "إنشاء"}
+              {editingRole ? tCommon("save") : tCommon("create")}
             </SubmitButton>
           </DialogFooter>
         </form>
@@ -171,6 +172,8 @@ function PermissionsDialog({
   onSave,
   isSaving,
 }: PermissionsDialogProps) {
+  const t = useTranslations("roles");
+  const tCommon = useTranslations("common");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
 
   // Initialize selected permissions when dialog opens
@@ -305,10 +308,10 @@ function PermissionsDialog({
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >
-            إلغاء
+            {tCommon("cancel")}
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "جاري الحفظ..." : "حفظ الصلاحيات"}
+            {isSaving ? t("savingPermissions") : t("savePermissions")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -320,6 +323,9 @@ function PermissionsDialog({
 
 export default function RolesPage() {
   const { currentStoreId } = useStore();
+  const t = useTranslations("roles");
+  const tCommon = useTranslations("common");
+  const tSuccess = useTranslations("success");
 
   // State
   const [roles, setRoles] = useState<Role[]>([]);
@@ -358,7 +364,7 @@ export default function RolesPage() {
       const message =
         err && typeof err === "object" && "message" in err
           ? (err as { message: string }).message
-          : "فشل تحميل الأدوار";
+          : t("loadFailed");
       setError(message);
     } finally {
       setLoading(false);
@@ -403,7 +409,7 @@ export default function RolesPage() {
             name: data.name,
             description: data.description || undefined,
           });
-          toast.success("تم تحديث الدور بنجاح");
+          toast.success(tSuccess("role.updated"));
         } else {
           // Create
           const payload: CreateRolePayload = {
@@ -411,7 +417,7 @@ export default function RolesPage() {
             description: data.description || undefined,
           };
           await roleService.create(currentStoreId, payload);
-          toast.success("تم إنشاء الدور بنجاح");
+          toast.success(tSuccess("role.created"));
         }
         setRoleDialogOpen(false);
         fetchRoles();
@@ -420,8 +426,8 @@ export default function RolesPage() {
           err && typeof err === "object" && "message" in err
             ? (err as { message: string }).message
             : editingRole
-              ? "فشل تحديث الدور"
-              : "فشل إنشاء الدور";
+              ? t("updateFailed")
+              : t("createFailed");
         toast.error(message);
       } finally {
         setIsSubmitting(false);
@@ -446,14 +452,14 @@ export default function RolesPage() {
         await roleService.updatePermissions(currentStoreId, roleId, {
           permissions,
         });
-        toast.success("تم تحديث الصلاحيات بنجاح");
+        toast.success(tSuccess("role.permissionsUpdated"));
         setPermDialogOpen(false);
         fetchRoles();
       } catch (err: unknown) {
         const message =
           err && typeof err === "object" && "message" in err
             ? (err as { message: string }).message
-            : "فشل تحديث الصلاحيات";
+            : t("permissionsUpdateFailed");
         toast.error(message);
       } finally {
         setIsSavingPerms(false);
@@ -470,14 +476,14 @@ export default function RolesPage() {
     setDeleteLoading(true);
     try {
       await roleService.delete(currentStoreId, deleteDialog.role.id);
-      toast.success("تم حذف الدور بنجاح");
+      toast.success(tSuccess("crud.deleted"));
       setDeleteDialog({ open: false, role: null });
       fetchRoles();
     } catch (err: unknown) {
       const message =
         err && typeof err === "object" && "message" in err
           ? (err as { message: string }).message
-          : "فشل حذف الدور";
+          : t("deleteFailed");
       toast.error(message);
     } finally {
       setDeleteLoading(false);
@@ -497,7 +503,7 @@ export default function RolesPage() {
       {
         id: "name",
         accessorKey: "name",
-        header: "اسم الدور",
+        header: t("headerName"),
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
@@ -513,7 +519,7 @@ export default function RolesPage() {
       {
         id: "description",
         accessorKey: "description",
-        header: "الوصف",
+        header: t("headerDescription"),
         enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground text-sm">
@@ -523,7 +529,7 @@ export default function RolesPage() {
       },
       {
         id: "permissions_count",
-        header: "عدد الصلاحيات",
+        header: t("permissionsCount"),
         enableSorting: false,
         cell: ({ row }) => (
           <Badge variant="outline">
@@ -533,7 +539,7 @@ export default function RolesPage() {
       },
       {
         id: "actions",
-        header: "الإجراءات",
+        header: t("headerActions"),
         enableSorting: false,
         cell: ({ row }) => {
           const role = row.original;
@@ -619,7 +625,7 @@ export default function RolesPage() {
         loading={loading}
         error={error}
         onRetry={handleRetry}
-        emptyMessage="لا توجد أدوار"
+        emptyMessage={t("noRoles")}
         emptyIcon={<Shield className="h-12 w-12" />}
       />
 
@@ -648,10 +654,12 @@ export default function RolesPage() {
         onOpenChange={(open) => {
           if (!open) setDeleteDialog({ open: false, role: null });
         }}
-        title="حذف الدور"
-        description={`هل أنت متأكد من حذف الدور "${deleteDialog.role?.name}"؟ سيتم إزالة جميع الصلاحيات المرتبطة به.`}
-        confirmLabel="حذف"
-        cancelLabel="إلغاء"
+        title={t("deleteTitle")}
+        description={t("deleteDescription", {
+          name: deleteDialog.role?.name || "",
+        })}
+        confirmLabel={tCommon("delete")}
+        cancelLabel={tCommon("cancel")}
         onConfirm={handleDeleteConfirm}
         destructive
         loading={deleteLoading}

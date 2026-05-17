@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft,
   Package,
@@ -114,6 +115,7 @@ export default function OrderDetailPage() {
   const params = useParams();
   const { currentStoreId } = useStore();
   const locale = useAppSelector((state) => state.ui.locale);
+  const tA11y = useTranslations("accessibility.buttons");
 
   const orderId = Number(params.id);
 
@@ -272,7 +274,7 @@ export default function OrderDetailPage() {
           variant="ghost"
           size="icon"
           onClick={() => router.push("/admin/orders")}
-          aria-label={locale === "ar" ? "العودة للطلبات" : "Back to orders"}
+          aria-label={tA11y("backToOrders")}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>

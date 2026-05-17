@@ -28,7 +28,7 @@ export function validateQuery<T extends z.ZodType>(schema: T): RequestHandler {
     if (!result.success) {
       return next(result.error);
     }
-    (req as any).query = result.data;
+    Object.assign(req.params, result.data);
     next();
   };
 }
@@ -44,7 +44,7 @@ export function validateParams<T extends z.ZodType>(schema: T): RequestHandler {
     if (!result.success) {
       return next(result.error);
     }
-    (req as any).params = result.data;
+    Object.assign(req.query, result.data);
     next();
   };
 }

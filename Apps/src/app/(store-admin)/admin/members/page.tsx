@@ -21,6 +21,7 @@ import {
   Mail,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 
 import { DataTable } from "@/components/tables/DataTable";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
@@ -79,6 +80,7 @@ function InviteDialog({
   onSubmit,
   isSubmitting,
 }: InviteDialogProps) {
+  const t = useTranslations("members");
   const { control, handleSubmit, reset } = useForm<InviteMemberFormData>({
     resolver: zodResolver(inviteMemberSchema),
     defaultValues: {
@@ -124,7 +126,7 @@ function InviteDialog({
           <FormField
             control={control}
             name="email"
-            label="البريد الإلكتروني"
+            label={t("emailLabel")}
             type="email"
             placeholder="user@example.com"
             required
@@ -134,9 +136,9 @@ function InviteDialog({
           <FormField
             control={control}
             name="role_id"
-            label="الدور"
+            label={t("roleLabel")}
             type="select"
-            placeholder="اختر الدور"
+            placeholder={t("rolePlaceholder")}
             options={roleOptions}
             required
           />
@@ -166,6 +168,9 @@ function InviteDialog({
 export default function MembersPage() {
   const dispatch = useAppDispatch();
   const { currentStoreId } = useStore();
+  const t = useTranslations("members");
+  const tCommon = useTranslations("common");
+  const tSuccess = useTranslations("success");
 
   const {
     items: members,
@@ -208,7 +213,7 @@ export default function MembersPage() {
         setRoles(response.data);
       } catch {
         // Roles fetch failure is non-critical, toast a warning
-        toast.error("فشل تحميل الأدوار");
+        toast.error(t("loadRolesFailed"));
       }
     };
 
@@ -242,24 +247,24 @@ export default function MembersPage() {
             payload: { email: data.email, role_id: data.role_id },
           }),
         ).unwrap();
-        toast.success("تم إرسال الدعوة بنجاح");
+        toast.success(tSuccess("member.invited"));
         setInviteOpen(false);
       } catch (err: unknown) {
         const message = typeof err === "string" ? err : "";
 
         // Handle specific error codes
         if (message.includes("409") || message.includes("already")) {
-          toast.error("هذا المستخدم عضو بالفعل في المتجر");
+          toast.error(t("alreadyMember"));
         } else if (
           message.includes("404") ||
           message.includes("not registered") ||
           message.includes("not found")
         ) {
-          toast.error("المستخدم غير مسجل في المنصة");
+          toast.error(t("userNotRegistered"));
         } else if (message.includes("role") || message.includes("invalid")) {
-          toast.error("الدور المحدد غير صالح");
+          toast.error(t("invalidRole"));
         } else {
-          toast.error(message || "فشل إرسال الدعوة");
+          toast.error(message || t("inviteFailed"));
         }
       } finally {
         setIsSubmitting(false);
@@ -282,9 +287,9 @@ export default function MembersPage() {
             payload: { role_id: newRoleId },
           }),
         ).unwrap();
-        toast.success("تم تغيير دور العضو بنجاح");
+        toast.success(tSuccess("member.roleChanged"));
       } catch (err: unknown) {
-        const message = typeof err === "string" ? err : "فشل تغيير دور العضو";
+        const message = typeof err === "string" ? err : t("roleChangeFailed");
         toast.error(message);
       } finally {
         setActionLoading(false);
@@ -305,9 +310,9 @@ export default function MembersPage() {
           memberId: removeDialog.member.id,
         }),
       ).unwrap();
-      toast.success("تم إزالة العضو بنجاح");
+      toast.success(tSuccess("member.removed"));
     } catch (err: unknown) {
-      const message = typeof err === "string" ? err : "فشل إزالة العضو";
+      const message = typeof err === "string" ? err : t("removeFailed");
       toast.error(message);
     } finally {
       setRemoveLoading(false);
@@ -323,10 +328,9 @@ export default function MembersPage() {
       setActionLoading(true);
       try {
         await memberService.resendInvite(currentStoreId, member.id);
-        toast.success("تم إعادة إرسال الدعوة بنجاح");
+        toast.success(tSuccess("member.invited"));
       } catch (err: unknown) {
-        const message =
-          typeof err === "string" ? err : "فشل إعادة إرسال الدعوة";
+        const message = typeof err === "string" ? err : t("resendFailed");
         toast.error(message);
       } finally {
         setActionLoading(false);
@@ -346,7 +350,7 @@ export default function MembersPage() {
     () => [
       {
         id: "name",
-        header: "الاسم",
+        header: t("headerName"),
         enableSorting: false,
         cell: ({ row }) => (
           <span className="font-medium">{row.original.user.name}</span>
@@ -354,7 +358,7 @@ export default function MembersPage() {
       },
       {
         id: "email",
-        header: "البريد الإلكتروني",
+        header: t("headerEmail"),
         enableSorting: false,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
@@ -364,7 +368,7 @@ export default function MembersPage() {
       },
       {
         id: "role",
-        header: "الدور",
+        header: t("headerRole"),
         enableSorting: false,
         cell: ({ row }) => (
           <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -374,13 +378,13 @@ export default function MembersPage() {
       },
       {
         id: "joined_at",
-        header: "تاريخ الانضمام",
+        header: t("headerJoinedAt"),
         enableSorting: false,
         cell: ({ row }) => formatDate(row.original.joined_at),
       },
       {
         id: "actions",
-        header: "الإجراءات",
+        header: t("headerActions"),
         enableSorting: false,
         cell: ({ row }) => {
           const member = row.original;
@@ -485,7 +489,7 @@ export default function MembersPage() {
         loading={loading}
         error={error}
         onRetry={handleRetry}
-        emptyMessage="لا يوجد أعضاء"
+        emptyMessage={t("noMembers")}
         emptyIcon={<Users className="h-12 w-12" />}
       />
 
@@ -504,10 +508,10 @@ export default function MembersPage() {
         onOpenChange={(open) => {
           if (!open) setRemoveDialog({ open: false, member: null });
         }}
-        title="إزالة العضو"
+        title={t("removeTitle")}
         description={`هل أنت متأكد من إزالة "${removeDialog.member?.user.name}" من فريق العمل؟ سيفقد العضو جميع صلاحياته في المتجر.`}
-        confirmLabel="إزالة"
-        cancelLabel="إلغاء"
+        confirmLabel={t("removeConfirmLabel")}
+        cancelLabel={tCommon("cancel")}
         onConfirm={handleRemove}
         destructive
         loading={removeLoading}

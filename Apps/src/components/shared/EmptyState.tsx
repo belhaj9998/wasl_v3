@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useTranslations } from "next-intl";
 import { FileX, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
@@ -35,7 +36,8 @@ export function EmptyState({
   action,
   className,
 }: EmptyStateProps) {
-  const displayMessage = description || message || "لا توجد بيانات";
+  const t = useTranslations("table");
+  const displayMessage = description || message || t("noData");
 
   // Determine how to render the icon
   const renderIcon = () => {

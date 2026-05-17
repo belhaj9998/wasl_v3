@@ -1,5 +1,7 @@
-import { createSlice } from "@reduxjs/toolkit";
-import type { PaginationMeta, Product } from "@/types";
+import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
+import type { PaginationMeta, Product, ProductStatus } from "@/types";
+import type { CacheEntry } from "../cache";
+import { createCacheEntry } from "../cache";
 import {
   fetchProducts,
   fetchProductById,
@@ -15,6 +17,8 @@ export interface ProductsState {
   meta: PaginationMeta | null;
   loading: boolean;
   error: string | null;
+  _rollbackSnapshot: Product[] | null;
+  listCache: CacheEntry<{ data: Product[]; meta: PaginationMeta }> | null;
 }
 
 const initialState: ProductsState = {
@@ -23,6 +27,8 @@ const initialState: ProductsState = {
   meta: null,
   loading: false,
   error: null,
+  _rollbackSnapshot: null,
+  listCache: null,
 };
 
 const productsSlice = createSlice({
@@ -30,6 +36,32 @@ const productsSlice = createSlice({
   initialState,
   reducers: {
     reset: () => initialState,
+    invalidateListCache(state) {
+      state.listCache = null;
+    },
+    optimisticDelete(state, action: PayloadAction<number>) {
+      state._rollbackSnapshot = state.items;
+      state.items = state.items.filter((p) => p.id !== action.payload);
+    },
+    optimisticStatusChange(
+      state,
+      action: PayloadAction<{ id: number; status: ProductStatus }>,
+    ) {
+      state._rollbackSnapshot = state.items;
+      const index = state.items.findIndex((p) => p.id === action.payload.id);
+      if (index !== -1) {
+        state.items[index] = {
+          ...state.items[index],
+          status: action.payload.status,
+        };
+      }
+    },
+    rollback(state) {
+      if (state._rollbackSnapshot) {
+        state.items = state._rollbackSnapshot;
+        state._rollbackSnapshot = null;
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -42,6 +74,10 @@ const productsSlice = createSlice({
         state.loading = false;
         state.items = action.payload.data;
         state.meta = action.payload.meta;
+        state.listCache = createCacheEntry(
+          { data: action.payload.data, meta: action.payload.meta },
+          action.meta.arg.params,
+        );
       })
       .addCase(fetchProducts.rejected, (state, action) => {
         state.loading = false;
@@ -130,5 +166,11 @@ const productsSlice = createSlice({
   },
 });
 
-export const { reset: resetProducts } = productsSlice.actions;
+export const {
+  reset: resetProducts,
+  invalidateListCache: invalidateProductsListCache,
+  optimisticDelete: optimisticDeleteProduct,
+  optimisticStatusChange: optimisticProductStatusChange,
+  rollback: rollbackProducts,
+} = productsSlice.actions;
 export default productsSlice.reducer;

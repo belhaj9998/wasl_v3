@@ -17,3 +17,6 @@ export type { SubmitButtonProps } from "./SubmitButton";
 
 export { mapServerErrorsToForm, parseServerErrors } from "./mapServerErrors";
 export type { ServerErrorMapping } from "./mapServerErrors";
+
+export { CreateStoreDialog } from "./CreateStoreDialog";
+export type { CreateStoreDialogProps } from "./CreateStoreDialog";
