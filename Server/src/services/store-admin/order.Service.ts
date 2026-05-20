@@ -207,7 +207,6 @@ export class OrderService {
               id: true,
               first_name: true,
               last_name: true,
-              email: true,
               phone: true,
             },
           },
@@ -248,7 +247,6 @@ export class OrderService {
             id: true,
             first_name: true,
             last_name: true,
-            email: true,
             phone: true,
           },
         },
@@ -270,7 +268,6 @@ export class OrderService {
     return await prisma.$transaction(async (tx) => {
       // Step 1: Validate customer if provided
       let customerName: string;
-      let customerEmail: string | undefined;
       let customerPhone: string;
 
       if (data.customer_id) {
@@ -283,7 +280,6 @@ export class OrderService {
         customerName = [customer.first_name, customer.last_name]
           .filter(Boolean)
           .join(" ");
-        customerEmail = customer.email ?? undefined;
         customerPhone = customer.phone ?? data.shipping_address.phone ?? "";
       } else {
         customerName = data.shipping_address.full_name;
@@ -385,7 +381,6 @@ export class OrderService {
           payment_status: "UNPAID",
           currency_code: "LYD",
           customer_name: customerName,
-          customer_email: customerEmail ?? null,
           customer_phone: customerPhone,
           subtotal,
           discount_total: discountTotal,

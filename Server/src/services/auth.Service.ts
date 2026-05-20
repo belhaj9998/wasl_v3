@@ -12,7 +12,6 @@ import {
   ResetPasswordInput,
   UserProfile,
 } from "../types/auth.types";
-
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
@@ -314,6 +313,167 @@ export class AuthService {
         reset_token_expires_at: null,
       },
     });
+  }
+
+  async getMyStores(userId: number) {
+    const memberships = await prisma.storeMembership.findMany({
+      where: {
+        user_id: userId,
+        status: "ACTIVE",
+        store: {
+          is: {
+            deleted_at: null,
+            status: {
+              not: "ARCHIVED",
+            },
+          },
+        },
+      },
+      include: {
+        store: true,
+        role: {
+          include: {
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { created_at: "asc" },
+    });
+
+    const storeIds = memberships.map((membership) => membership.store_id);
+
+    const ownerMemberships = storeIds.length
+      ? await prisma.storeMembership.findMany({
+          where: {
+            store_id: { in: storeIds },
+            status: "ACTIVE",
+            role: {
+              is: {
+                slug: "owner",
+              },
+            },
+          },
+          select: {
+            store_id: true,
+            user_id: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    const ownerByStoreId = new Map(
+      ownerMemberships.map((owner) => [owner.store_id, owner]),
+    );
+
+    return memberships.map((membership) => {
+      const store = membership.store;
+      const owner = ownerByStoreId.get(store.id);
+
+      const social_links: Record<string, string> = {};
+      if (store.facebook_url) social_links.facebook = store.facebook_url;
+      if (store.instagram_url) social_links.instagram = store.instagram_url;
+      if (store.tiktok_url) social_links.tiktok = store.tiktok_url;
+
+      return {
+        id: store.id,
+        name: store.name,
+        domain: store.domain,
+        status: store.status,
+        owner_id: owner?.user_id ?? membership.user_id,
+        logo_url: store.logo,
+        favicon_url: store.favicon,
+        description: store.description,
+        meta_title: store.meta_title,
+        meta_description: store.meta_description,
+        support_email: store.support_email,
+        support_phone: store.support_phone,
+        social_links: Object.keys(social_links).length ? social_links : null,
+        owner: owner?.user,
+        role: {
+          id: membership.role.id,
+          name: membership.role.name,
+          slug: membership.role.slug,
+        },
+        permissions: membership.role.permissions.map(
+          (item) => item.permission.code,
+        ),
+        created_at: store.created_at,
+        updated_at: store.updated_at,
+      };
+    });
+  }
+
+  async getMySubscription(userId: number) {
+    const memberships = await prisma.storeMembership.findMany({
+      where: {
+        user_id: userId,
+        status: "ACTIVE",
+        store: {
+          is: {
+            deleted_at: null,
+            status: {
+              not: "ARCHIVED",
+            },
+          },
+        },
+      },
+      select: {
+        store: {
+          select: {
+            subscription: {
+              include: {
+                plan: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const currentStoreCount = memberships.length;
+
+    const activeSubscription = memberships
+      .map((membership) => membership.store.subscription)
+      .find(
+        (subscription) =>
+          subscription &&
+          (subscription.status === "ACTIVE" ||
+            subscription.status === "TRIALING"),
+      );
+
+    if (activeSubscription) {
+      return {
+        hasActiveSubscription: true,
+        maxStores: activeSubscription.plan.max_stores,
+        currentStoreCount,
+      };
+    }
+
+    const starterPlan = await prisma.subscriptionPlan.findFirst({
+      where: {
+        code: "starter",
+        deleted_at: null,
+      },
+      select: {
+        max_stores: true,
+      },
+    });
+
+    return {
+      hasActiveSubscription: Boolean(starterPlan),
+      maxStores: starterPlan?.max_stores ?? null,
+      currentStoreCount,
+    };
   }
 }
 

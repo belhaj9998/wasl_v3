@@ -65,13 +65,11 @@ export default function StorefrontCartPage() {
         const response = await storefrontService.getCart(domain);
         dispatch(
           setCart({
-            items: response.data.items,
-            subtotal: response.data.subtotal,
-            discount_amount: response.data.discount_amount,
-            total: response.data.total,
-            coupon: response.data.coupon,
-            loading: false,
-            error: null,
+            items: response.data.cart.items ?? [],
+            subtotal: response.data.cart.subtotal ?? "0",
+            discount_amount: response.data.cart.discount_total ?? "0",
+            total: response.data.cart.grand_total ?? "0",
+            coupon: response.data.cart.coupon ?? null,
           } as CartState),
         );
       } catch {

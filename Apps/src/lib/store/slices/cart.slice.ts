@@ -58,11 +58,11 @@ const cartSlice = createSlice({
       }
     },
     setCart(state, action: PayloadAction<CartState>) {
-      state.items = action.payload.items;
-      state.subtotal = action.payload.subtotal;
-      state.discount_amount = action.payload.discount_amount;
-      state.total = action.payload.total;
-      state.coupon = action.payload.coupon;
+      state.items = action.payload.items ?? [];
+      state.subtotal = action.payload.subtotal ?? "0";
+      state.discount_amount = action.payload.discount_amount ?? "0";
+      state.total = action.payload.total ?? "0";
+      state.coupon = action.payload.coupon ?? null;
     },
     reset() {
       return initialState;
@@ -153,7 +153,7 @@ export const {
 } = cartSlice.actions;
 
 // Selectors
-export const selectCartItems = (state: RootState) => state.cart.items;
+export const selectCartItems = (state: RootState) => state.cart.items ?? [];
 export const selectCartSubtotal = (state: RootState) => state.cart.subtotal;
 export const selectCartDiscount = (state: RootState) =>
   state.cart.discount_amount;
@@ -162,8 +162,7 @@ export const selectCartCoupon = (state: RootState) => state.cart.coupon;
 export const selectCartLoading = (state: RootState) => state.cart.loading;
 export const selectCartError = (state: RootState) => state.cart.error;
 export const selectCartItemCount = (state: RootState) =>
-  state.cart.items.reduce((sum, item) => sum + item.quantity, 0);
+  (state.cart.items ?? []).reduce((sum, item) => sum + item.quantity, 0);
 export const selectCartItemQuantity = (state: RootState, itemId: number) =>
-  state.cart.items.find((item) => item.id === itemId)?.quantity ?? 0;
-
+  (state.cart.items ?? []).find((item) => item.id === itemId)?.quantity ?? 0;
 export default cartSlice.reducer;

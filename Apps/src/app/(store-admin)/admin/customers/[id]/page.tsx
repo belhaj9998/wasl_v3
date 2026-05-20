@@ -186,7 +186,6 @@ export default function CustomerDetailPage() {
         status: data.status || undefined,
         gender: data.gender || undefined,
         birth_date: data.birth_date || undefined,
-        accepts_marketing: data.accepts_marketing,
       };
 
       await dispatch(
@@ -571,10 +570,6 @@ function CustomerProfileView({ customer }: { customer: Customer }) {
       <InfoItem
         label="تاريخ الميلاد"
         value={customer.birth_date ? formatDate(customer.birth_date) : null}
-      />
-      <InfoItem
-        label="يقبل التسويق"
-        value={customer.accepts_marketing ? "نعم" : "لا"}
       />
       <InfoItem label="إجمالي الطلبات" value={String(customer.total_orders)} />
       <InfoItem

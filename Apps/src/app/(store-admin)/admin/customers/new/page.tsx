@@ -40,7 +40,6 @@ export default function NewCustomerPage() {
         status: data.status || undefined,
         gender: data.gender || undefined,
         birth_date: data.birth_date || undefined,
-        accepts_marketing: data.accepts_marketing,
       };
 
       const result = await dispatch(

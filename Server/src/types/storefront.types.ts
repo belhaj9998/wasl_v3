@@ -16,7 +16,7 @@ export interface StorefrontStoreContext {
 
 export interface StorefrontCustomerContext {
   customerId: number;
-  email: string;
+  phone: string;
   store_id: number;
 }
 
@@ -32,7 +32,7 @@ export interface StorefrontRequest extends AppRequest {
 
 export interface CustomerJwtPayload {
   customerId: number;
-  email: string;
+  phone: string;
   storeId: number;
   iat?: number;
   exp?: number;
@@ -58,7 +58,6 @@ export interface AddToCartInput {
 
 export interface CreateCheckoutInput {
   customer_name: string;
-  customer_email?: string;
   customer_phone: string;
 
   shipping_address: {
@@ -83,7 +82,6 @@ export interface CreateCheckoutInput {
 export interface CustomerRegistrationInput {
   first_name: string;
   last_name?: string;
-  email: string;
   phone: string;
   password: string;
 }

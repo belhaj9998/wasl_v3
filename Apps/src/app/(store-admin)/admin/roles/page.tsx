@@ -160,7 +160,7 @@ interface PermissionsDialogProps {
   onOpenChange: (open: boolean) => void;
   role: Role | null;
   allPermissions: Permission[];
-  onSave: (roleId: number, permissions: string[]) => Promise<void>;
+  onSave: (roleId: number, permissions: number[]) => Promise<void>;
   isSaving: boolean;
 }
 
@@ -174,47 +174,45 @@ function PermissionsDialog({
 }: PermissionsDialogProps) {
   const t = useTranslations("roles");
   const tCommon = useTranslations("common");
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
 
-  // Initialize selected permissions when dialog opens
   useEffect(() => {
     if (open && role) {
       setSelectedPermissions(role.permissions || []);
     }
   }, [open, role]);
 
-  // Group permissions by module
   const groupedPermissions = useMemo(() => {
     const groups: Record<string, Permission[]> = {};
     for (const perm of allPermissions) {
       const group = perm.group || perm.code.split(":")[0] || "other";
-      if (!groups[group]) {
-        groups[group] = [];
-      }
+      if (!groups[group]) groups[group] = [];
       groups[group].push(perm);
     }
     return groups;
   }, [allPermissions]);
 
-  const handleToggle = useCallback((code: string) => {
+  const handleToggle = useCallback((permissionId: number) => {
     setSelectedPermissions((prev) =>
-      prev.includes(code) ? prev.filter((p) => p !== code) : [...prev, code],
+      prev.includes(permissionId)
+        ? prev.filter((id) => id !== permissionId)
+        : [...prev, permissionId],
     );
   }, []);
 
   const handleSelectAll = useCallback(
-    (group: string, perms: Permission[]) => {
-      const codes = perms.map((p) => p.code);
-      const allSelected = codes.every((c) => selectedPermissions.includes(c));
+    (perms: Permission[]) => {
+      const ids = perms.map((p) => p.id);
+      const allSelected = ids.every((id) => selectedPermissions.includes(id));
 
       if (allSelected) {
         setSelectedPermissions((prev) =>
-          prev.filter((p) => !codes.includes(p)),
+          prev.filter((id) => !ids.includes(id)),
         );
       } else {
         setSelectedPermissions((prev) => [
           ...prev,
-          ...codes.filter((c) => !prev.includes(c)),
+          ...ids.filter((id) => !prev.includes(id)),
         ]);
       }
     },
@@ -238,12 +236,13 @@ function PermissionsDialog({
 
         <div className="space-y-6 py-4">
           {Object.entries(groupedPermissions).map(([group, perms]) => {
-            const allSelected = perms.every((p) =>
-              selectedPermissions.includes(p.code),
+            const ids = perms.map((p) => p.id);
+            const allSelected = ids.every((id) =>
+              selectedPermissions.includes(id),
             );
             const someSelected =
               !allSelected &&
-              perms.some((p) => selectedPermissions.includes(p.code));
+              ids.some((id) => selectedPermissions.includes(id));
 
             return (
               <div key={group} className="space-y-3">
@@ -257,7 +256,7 @@ function PermissionsDialog({
                           someSelected;
                       }
                     }}
-                    onCheckedChange={() => handleSelectAll(group, perms)}
+                    onCheckedChange={() => handleSelectAll(perms)}
                   />
                   <Label
                     htmlFor={`group-${group}`}
@@ -267,7 +266,7 @@ function PermissionsDialog({
                   </Label>
                   <Badge variant="secondary" className="text-xs">
                     {
-                      perms.filter((p) => selectedPermissions.includes(p.code))
+                      ids.filter((id) => selectedPermissions.includes(id))
                         .length
                     }
                     /{perms.length}
@@ -279,8 +278,8 @@ function PermissionsDialog({
                     <div key={perm.code} className="flex items-center gap-2">
                       <Checkbox
                         id={`perm-${perm.code}`}
-                        checked={selectedPermissions.includes(perm.code)}
-                        onCheckedChange={() => handleToggle(perm.code)}
+                        checked={selectedPermissions.includes(perm.id)}
+                        onCheckedChange={() => handleToggle(perm.id)}
                       />
                       <Label
                         htmlFor={`perm-${perm.code}`}
@@ -318,7 +317,6 @@ function PermissionsDialog({
     </Dialog>
   );
 }
-
 // ─── Roles Page ──────────────────────────────────────────────────────────────
 
 export default function RolesPage() {
@@ -444,13 +442,13 @@ export default function RolesPage() {
   }, []);
 
   const handleSavePermissions = useCallback(
-    async (roleId: number, permissions: string[]) => {
+    async (roleId: number, permissions: number[]) => {
       if (!currentStoreId) return;
 
       setIsSavingPerms(true);
       try {
         await roleService.updatePermissions(currentStoreId, roleId, {
-          permissions,
+          permission_ids: permissions,
         });
         toast.success(tSuccess("role.permissionsUpdated"));
         setPermDialogOpen(false);
@@ -465,9 +463,8 @@ export default function RolesPage() {
         setIsSavingPerms(false);
       }
     },
-    [currentStoreId, fetchRoles],
+    [currentStoreId, fetchRoles, t, tSuccess],
   );
-
   // ========== Delete Role ==========
 
   const handleDeleteConfirm = useCallback(async () => {
@@ -488,7 +485,7 @@ export default function RolesPage() {
     } finally {
       setDeleteLoading(false);
     }
-  }, [deleteDialog.role, currentStoreId, fetchRoles]);
+  }, [deleteDialog.role, currentStoreId, fetchRoles, t, tSuccess]);
 
   // ========== Retry ==========
 
@@ -554,8 +551,7 @@ export default function RolesPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {/* Edit */}
-                <PermissionGate permission="role:update">
+                <PermissionGate permission="staff.manage">
                   <DropdownMenuItem
                     onClick={() => handleOpenEdit(role)}
                     disabled={isProtected}
@@ -565,8 +561,7 @@ export default function RolesPage() {
                   </DropdownMenuItem>
                 </PermissionGate>
 
-                {/* Manage Permissions */}
-                <PermissionGate permission="role:update">
+                <PermissionGate permission="staff.manage">
                   <DropdownMenuItem onClick={() => handleOpenPermissions(role)}>
                     <Key className="me-2 h-4 w-4" />
                     إدارة الصلاحيات
@@ -575,8 +570,7 @@ export default function RolesPage() {
 
                 <DropdownMenuSeparator />
 
-                {/* Delete */}
-                <PermissionGate permission="role:delete">
+                <PermissionGate permission="staff.manage">
                   <DropdownMenuItem
                     onClick={() => setDeleteDialog({ open: true, role })}
                     disabled={isProtected}
@@ -592,9 +586,8 @@ export default function RolesPage() {
         },
       },
     ],
-    [handleOpenEdit, handleOpenPermissions],
+    [t, handleOpenEdit, handleOpenPermissions],
   );
-
   // ========== Render ==========
 
   return (
@@ -609,7 +602,7 @@ export default function RolesPage() {
         </div>
 
         {/* Create Role button — permission-gated */}
-        <PermissionGate permission="role:create">
+        <PermissionGate permission="staff.manage">
           <Button onClick={handleOpenCreate}>
             <Plus className="me-2 h-4 w-4" />
             إنشاء دور

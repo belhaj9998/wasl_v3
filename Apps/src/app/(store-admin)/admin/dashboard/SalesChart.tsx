@@ -31,7 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type SalesPeriod = "daily" | "weekly" | "monthly";
+type SalesPeriod = "day" | "week" | "month";
 
 interface SalesDataPoint {
   date: string;
@@ -74,9 +74,9 @@ function PeriodToggle({ activePeriod, onPeriodChange }: PeriodToggleProps) {
   const t = useTranslations("storeDashboard");
 
   const periods: { key: SalesPeriod; label: string }[] = [
-    { key: "daily", label: t("daily") },
-    { key: "weekly", label: t("weekly") },
-    { key: "monthly", label: t("monthly") },
+    { key: "day", label: t("daily") },
+    { key: "week", label: t("weekly") },
+    { key: "month", label: t("monthly") },
   ];
 
   return (
@@ -189,7 +189,7 @@ export default function SalesChart() {
   const t = useTranslations("storeDashboard");
   const { currentStoreId } = useStore();
 
-  const [period, setPeriod] = useState<SalesPeriod>("daily");
+  const [period, setPeriod] = useState<SalesPeriod>("day");
   const [data, setData] = useState<SalesDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -201,12 +201,12 @@ export default function SalesChart() {
     setError(false);
 
     try {
-      const response = await apiClient<{ data: SalesChartData }>(
-        `${API_ENDPOINTS.STORE.DASHBOARD(currentStoreId)}/sales?period=${period}`,
+      const response = await apiClient<{ data: { stats: SalesDataPoint[] } }>(
+        `${API_ENDPOINTS.STORE.DASHBOARD(currentStoreId)}/sales-stats?period=${period}`,
         { storeId: currentStoreId },
       );
 
-      setData(response.data.data || []);
+      setData(response.data.stats || []);
     } catch {
       setError(true);
     } finally {

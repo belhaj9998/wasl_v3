@@ -28,13 +28,10 @@ const registerSchema = z.object({
     .min(2, "First name must be at least 2 characters")
     .max(100, "First name must not exceed 100 characters"),
   last_name: z.string().optional(),
-  email: z.string().email("Invalid email format"),
   phone: z
     .string()
     .min(8, "Phone must be at least 8 characters")
-    .max(20, "Phone must not exceed 20 characters")
-    .optional()
-    .or(z.literal("")),
+    .max(20, "Phone must not exceed 20 characters"),
   password: z
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -65,8 +62,7 @@ export default function StorefrontRegisterPage() {
       const response = await storefrontService.customerRegister(domain, {
         first_name: data.first_name,
         last_name: data.last_name,
-        email: data.email,
-        phone: data.phone || undefined,
+        phone: data.phone,
         password: data.password,
       });
       setCustomerToken(response.data.token);
@@ -113,24 +109,14 @@ export default function StorefrontRegisterPage() {
             </div>
 
             <div>
-              <Label htmlFor="email">{t("email")} *</Label>
-              <Input
-                id="email"
-                type="email"
-                {...register("email")}
-                className="mt-1"
-                dir="ltr"
-              />
-              {errors.email && <FormError message={errors.email.message} />}
-            </div>
-
-            <div>
-              <Label htmlFor="phone">{t("phone")}</Label>
+              <Label htmlFor="phone">{t("phone")} *</Label>{" "}
               <Input
                 id="phone"
+                type="tel"
                 {...register("phone")}
                 className="mt-1"
                 dir="ltr"
+                placeholder="+218920000001"
               />
               {errors.phone && <FormError message={errors.phone.message} />}
             </div>

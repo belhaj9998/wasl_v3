@@ -499,27 +499,24 @@ model InventoryMovement {
 }
 
 model Customer {
-  id                Int               @id @default(autoincrement())
-  store_id          Int
-  first_name        String?
-  last_name         String?
-  email             String?
-  phone             String?
-  password_hash     String?
-  gender            String?
-  birth_date        DateTime?
-  notes             String?
-  status            CustomerStatus    @default(ACTIVE)
-  accepts_marketing Boolean           @default(false)
-  created_at        DateTime          @default(now())
-  updated_at        DateTime          @updatedAt
-  store             Store             @relation(fields: [store_id], references: [id], onDelete: Cascade)
-  addresses         CustomerAddress[]
-  carts             Cart[]
-  orders            Order[]
-  coupon_usages     CouponUsage[]
+  id            Int               @id @default(autoincrement())
+  store_id      Int
+  first_name    String?
+  last_name     String?
+  phone         String?
+  password_hash String?
+  gender        String?
+  birth_date    DateTime?
+  notes         String?
+  status        CustomerStatus    @default(ACTIVE)
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  store         Store             @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  addresses     CustomerAddress[]
+  carts         Cart[]
+  orders        Order[]
+  coupon_usages CouponUsage[]
 
-  @@unique([store_id, email])
   @@unique([store_id, phone])
   @@unique([id, store_id])
   @@index([store_id, status])
@@ -569,8 +566,8 @@ model Cart {
   order          Order?
   coupon_usages  CouponUsage[]
 
-  @@unique([store_id, session_id])
   @@unique([id, store_id])
+  @@index([store_id, session_id])
   @@index([store_id, status])
 }
 
@@ -647,7 +644,6 @@ model Order {
   payment_status      PaymentStatus        @default(UNPAID)
   currency_code       String               @default("LYD")
   customer_name       String
-  customer_email      String?
   customer_phone      String
   subtotal            Decimal
   discount_total      Decimal              @default(0)

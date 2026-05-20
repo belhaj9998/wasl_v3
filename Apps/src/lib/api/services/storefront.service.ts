@@ -22,6 +22,7 @@ import type {
 // --- Payload types ---
 
 export interface AddToCartPayload {
+  product_id: number;
   variant_id: number;
   quantity: number;
 }
@@ -59,20 +60,18 @@ export interface OrderLookupPayload {
 export interface CustomerRegisterPayload {
   first_name: string;
   last_name?: string;
-  email: string;
-  phone?: string;
+  phone: string;
   password: string;
 }
 
 export interface CustomerLoginPayload {
-  email: string;
+  phone: string;
   password: string;
 }
 
 export interface UpdateCustomerProfilePayload {
   first_name?: string;
   last_name?: string;
-  email?: string;
   phone?: string;
 }
 
@@ -92,20 +91,100 @@ export interface CustomerAuthResponse {
   customer: Customer;
   token: string;
 }
+interface CustomerProfileResponse {
+  customer: Customer;
+}
 
+interface CustomerAddressResponse {
+  address: Address;
+}
+interface StoreInfoResponse {
+  store: Store;
+}
+
+interface CategoriesResponse {
+  categories: Category[];
+}
 // --- Service ---
+interface ProductResponse {
+  product: Product;
+}
 
+interface CartResponse {
+  cart: Cart & {
+    discount_total?: string;
+    shipping_total?: string;
+    grand_total?: string;
+  };
+}
+
+interface CheckoutResponse {
+  order: Order;
+  payment_link: string | null;
+  client_secret: string | null;
+}
+
+export interface StorefrontOrderLookupItem {
+  id: number;
+  product_name: string;
+  variant_title: string | null;
+  sku: string;
+  quantity: number;
+  unit_price: string;
+  line_total: string;
+}
+
+export interface StorefrontOrderLookupAddress {
+  id: number;
+  type: string;
+  full_name: string;
+  phone: string | null;
+  city: string;
+  region: string | null;
+  street_line_1: string;
+  street_line_2: string | null;
+  postal_code: string | null;
+  google_maps_url: string | null;
+}
+
+export interface StorefrontOrderLookupTimelineEvent {
+  id: number;
+  event: string;
+  from_status: string | null;
+  to_status: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export interface StorefrontOrderLookup {
+  order_number: string;
+  status: string;
+  payment_status: string;
+  currency_code: string;
+  subtotal: string;
+  discount_total: string;
+  shipping_total: string;
+  grand_total: string;
+  placed_at: string | null;
+  items: StorefrontOrderLookupItem[];
+  addresses: StorefrontOrderLookupAddress[];
+  timeline: StorefrontOrderLookupTimelineEvent[];
+}
+
+interface OrderLookupResponse {
+  order: StorefrontOrderLookup;
+}
 export const storefrontService = {
   // Store info
   getStore(domain: string) {
-    return apiClient<ApiResponse<Store>>(
+    return apiClient<ApiResponse<StoreInfoResponse>>(
       API_ENDPOINTS.STOREFRONT.STORE_INFO(domain),
     );
   },
 
   // Categories
   getCategories(domain: string) {
-    return apiClient<ApiResponse<Category[]>>(
+    return apiClient<ApiResponse<CategoriesResponse>>(
       API_ENDPOINTS.STOREFRONT.CATEGORIES(domain),
     );
   },
@@ -128,7 +207,7 @@ export const storefrontService = {
 
   searchProducts(domain: string, query: string, params?: PaginationParams) {
     const searchParams = new URLSearchParams({
-      q: query,
+      query,
       ...(params as Record<string, string>),
     });
     return apiClient<PaginatedResponse<Product>>(
@@ -137,18 +216,20 @@ export const storefrontService = {
   },
 
   getProductBySlug(domain: string, slug: string) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       `${API_ENDPOINTS.STOREFRONT.PRODUCTS(domain)}/${slug}`,
     );
   },
 
   // Cart
   getCart(domain: string) {
-    return apiClient<ApiResponse<Cart>>(API_ENDPOINTS.STOREFRONT.CART(domain));
+    return apiClient<ApiResponse<CartResponse>>(
+      API_ENDPOINTS.STOREFRONT.CART(domain),
+    );
   },
 
   addToCart(domain: string, payload: AddToCartPayload) {
-    return apiClient<ApiResponse<Cart>>(
+    return apiClient<ApiResponse<CartResponse>>(
       API_ENDPOINTS.STOREFRONT.CART_ITEMS(domain),
       {
         method: "POST",
@@ -162,17 +243,17 @@ export const storefrontService = {
     itemId: number,
     payload: UpdateCartItemPayload,
   ) {
-    return apiClient<ApiResponse<Cart>>(
+    return apiClient<ApiResponse<CartResponse>>(
       `${API_ENDPOINTS.STOREFRONT.CART_ITEMS(domain)}/${itemId}`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
       },
     );
   },
 
   removeCartItem(domain: string, itemId: number) {
-    return apiClient<ApiResponse<Cart>>(
+    return apiClient<ApiResponse<CartResponse>>(
       `${API_ENDPOINTS.STOREFRONT.CART_ITEMS(domain)}/${itemId}`,
       { method: "DELETE" },
     );
@@ -180,7 +261,7 @@ export const storefrontService = {
 
   // Coupon
   applyCoupon(domain: string, payload: ApplyCouponPayload) {
-    return apiClient<ApiResponse<Cart>>(
+    return apiClient<ApiResponse<CartResponse>>(
       API_ENDPOINTS.STOREFRONT.COUPON_APPLY(domain),
       {
         method: "POST",
@@ -190,15 +271,15 @@ export const storefrontService = {
   },
 
   removeCoupon(domain: string) {
-    return apiClient<ApiResponse<Cart>>(
-      API_ENDPOINTS.STOREFRONT.COUPON_APPLY(domain),
+    return apiClient<ApiResponse<CartResponse>>(
+      API_ENDPOINTS.STOREFRONT.COUPON_REMOVE(domain),
       { method: "DELETE" },
     );
   },
 
   // Checkout
   checkout(domain: string, payload: CheckoutPayload) {
-    return apiClient<ApiResponse<Order>>(
+    return apiClient<ApiResponse<CheckoutResponse>>(
       API_ENDPOINTS.STOREFRONT.CHECKOUT(domain),
       {
         method: "POST",
@@ -209,15 +290,15 @@ export const storefrontService = {
 
   // Order lookup
   orderLookup(domain: string, payload: OrderLookupPayload) {
-    return apiClient<ApiResponse<Order>>(
-      API_ENDPOINTS.STOREFRONT.ORDER_LOOKUP(domain),
-      {
-        method: "POST",
-        body: payload,
-      },
+    const searchParams = new URLSearchParams({
+      order_number: payload.order_number,
+      verification_value: payload.phone,
+    });
+
+    return apiClient<ApiResponse<OrderLookupResponse>>(
+      `${API_ENDPOINTS.STOREFRONT.ORDER_LOOKUP(domain)}?${searchParams.toString()}`,
     );
   },
-
   // Customer auth
   customerRegister(domain: string, payload: CustomerRegisterPayload) {
     return apiClient<ApiResponse<CustomerAuthResponse>>(
@@ -241,21 +322,24 @@ export const storefrontService = {
 
   // Customer profile
   getCustomerProfile(domain: string) {
-    return apiClient<ApiResponse<Customer>>(
+    return apiClient<ApiResponse<CustomerProfileResponse>>(
       API_ENDPOINTS.STOREFRONT.CUSTOMERS.ME(domain),
+    ).then(
+      (res) => ({ ...res, data: res.data.customer }) as ApiResponse<Customer>,
     );
   },
 
   updateCustomerProfile(domain: string, payload: UpdateCustomerProfilePayload) {
-    return apiClient<ApiResponse<Customer>>(
+    return apiClient<ApiResponse<CustomerProfileResponse>>(
       API_ENDPOINTS.STOREFRONT.CUSTOMERS.ME(domain),
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.customer }) as ApiResponse<Customer>,
     );
   },
-
   // Customer orders
   getCustomerOrders(domain: string, params?: PaginationParams) {
     const query = params
@@ -274,12 +358,14 @@ export const storefrontService = {
   },
 
   addCustomerAddress(domain: string, payload: CustomerAddressPayload) {
-    return apiClient<ApiResponse<Address>>(
+    return apiClient<ApiResponse<CustomerAddressResponse>>(
       API_ENDPOINTS.STOREFRONT.CUSTOMERS.ADDRESSES(domain),
       {
         method: "POST",
         body: payload,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.address }) as ApiResponse<Address>,
     );
   },
 

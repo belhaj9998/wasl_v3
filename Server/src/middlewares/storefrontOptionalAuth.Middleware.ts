@@ -8,7 +8,7 @@ import {
 
 // ========== storefrontOptionalAuth ==========
 // Attempts to verify a customer JWT from the Authorization header.
-// If valid: attaches req.customer with customerId, email, and store_id.
+// If valid: attaches req.customer with customerId, phone, and store_id.
 // If absent, malformed, invalid, or expired: sets req.customer = undefined.
 // NEVER returns an error response or blocks request flow.
 
@@ -39,14 +39,12 @@ export const storefrontOptionalAuth = (
 
     req.customer = {
       customerId: decoded.customerId,
-      email: decoded.email,
+      phone: decoded.phone,
       store_id: decoded.storeId,
     };
 
     return next();
   } catch {
-    // Any error (invalid signature, expired, malformed, etc.)
-    // — silently continue as guest
     req.customer = undefined;
     return next();
   }

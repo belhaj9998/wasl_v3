@@ -17,19 +17,16 @@ const app = express();
 // 1. Security headers
 app.use(helmet());
 
-// 2. Rate limiting
-app.use(globalRateLimiter);
-
-// 3. HTTP request logging
-app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
-
-// 4. CORS
 app.use(
   cors({
     origin: config.corsOrigins.length > 0 ? config.corsOrigins : "*",
     credentials: true,
   }),
 );
+
+app.use(morgan(config.nodeEnv === "production" ? "combined" : "dev"));
+
+app.use(globalRateLimiter);
 
 // 5. JSON body parser with configurable size limit
 app.use(express.json({ limit: "10mb" }));

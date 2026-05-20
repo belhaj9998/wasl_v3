@@ -9,6 +9,34 @@ const MAX_ITEM_QUANTITY = 9999;
 /** Maximum distinct line items allowed per cart */
 const MAX_LINE_ITEMS = 100;
 
+const cartInclude = {
+  items: {
+    include: {
+      product: {
+        select: {
+          name: true,
+          slug: true,
+          media: {
+            orderBy: { sort_order: "asc" },
+            take: 1,
+            select: {
+              id: true,
+              url: true,
+              alt_text: true,
+              sort_order: true,
+            },
+          },
+        },
+      },
+      variant: {
+        select: {
+          title: true,
+          sku: true,
+        },
+      },
+    },
+  },
+} as const;
 /**
  * Type alias for a Prisma transaction client, used by recalculateCartTotals
  * and other methods that operate within a transaction.
@@ -69,7 +97,7 @@ export class StorefrontCartService {
         shipping_total: 0,
         grand_total: 0,
       },
-      include: { items: true },
+      include: cartInclude,
     });
 
     return cart;
@@ -117,7 +145,7 @@ export class StorefrontCartService {
     if (quantity === 0) {
       const cart = await prisma.cart.findFirst({
         where: { id: cartId, store_id: storeId, status: "OPEN" },
-        include: { items: true },
+        include: cartInclude,
       });
       if (!cart) {
         throw AppError.notFound("Cart not found");
@@ -129,7 +157,7 @@ export class StorefrontCartService {
       // Verify cart exists and is OPEN
       const cart = await tx.cart.findFirst({
         where: { id: cartId, store_id: storeId, status: "OPEN" },
-        include: { items: true },
+        include: cartInclude,
       });
 
       if (!cart) {
@@ -423,7 +451,7 @@ export class StorefrontCartService {
         subtotal,
         grand_total: grandTotal,
       },
-      include: { items: true },
+      include: cartInclude,
     });
 
     return updatedCart;
@@ -474,7 +502,7 @@ export class StorefrontCartService {
         customer_id: customerId,
         status: "OPEN",
       },
-      include: { items: true },
+      include: cartInclude,
     });
 
     if (!customerCart) {
@@ -596,7 +624,7 @@ export class StorefrontCartService {
           customer_id: customerId,
           status: "OPEN",
         },
-        include: { items: true },
+        include: cartInclude,
       });
     }
 
@@ -607,7 +635,7 @@ export class StorefrontCartService {
           session_id: sessionId,
           status: "OPEN",
         },
-        include: { items: true },
+        include: cartInclude,
       });
     }
 

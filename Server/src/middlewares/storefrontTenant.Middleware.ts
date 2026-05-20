@@ -4,7 +4,7 @@ import prisma from "../configs/prisma";
 import { StorefrontRequest } from "../types/storefront.types";
 import { AppError } from "../utils/AppError";
 import { StoreStatus } from "../../generated/prisma";
-
+import { config } from "../configs/App.config";
 const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60; // 604800
 const SESSION_COOKIE_NAME = "storefront_session";
 
@@ -84,7 +84,7 @@ export const storefrontTenantMiddleware = async (
       sessionId = randomUUID();
       res.cookie(SESSION_COOKIE_NAME, sessionId, {
         httpOnly: true,
-        secure: true,
+        secure: config.nodeEnv === "production",
         sameSite: "strict",
         maxAge: SEVEN_DAYS_SECONDS * 1000, // Express expects milliseconds
       });

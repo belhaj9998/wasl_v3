@@ -84,7 +84,13 @@ const inventorySlice = createSlice({
       })
       .addCase(adjustInventory.fulfilled, (state, action) => {
         state.loading = false;
-        state.movements.unshift(action.payload);
+        const index = state.items.findIndex(
+          (item) => item.variant_id === action.payload.variant_id,
+        );
+
+        if (index !== -1) {
+          state.items[index] = action.payload;
+        }
       })
       .addCase(adjustInventory.rejected, (state, action) => {
         state.loading = false;

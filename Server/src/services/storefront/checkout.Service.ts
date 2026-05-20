@@ -113,7 +113,6 @@ export class StorefrontCheckoutService {
           payment_status: "UNPAID",
           currency_code: cart.currency_code ?? "LYD",
           customer_name: input.customer_name,
-          customer_email: input.customer_email ?? null,
           customer_phone: input.customer_phone,
           subtotal: cart.subtotal,
           discount_total: cart.discount_total,

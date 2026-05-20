@@ -45,7 +45,6 @@ export const checkoutSchema = z.object({
   customer_phone: z
     .string()
     .regex(/^\+218[0-9]{9}$/, "Invalid Libyan phone format"),
-  customer_email: z.string().email().optional(),
 
   shipping_address: z.object({
     full_name: z.string().min(1).max(200),
@@ -78,7 +77,6 @@ export const checkoutSchema = z.object({
 export const customerRegisterSchema = z.object({
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100).optional(),
-  email: z.string().email().max(255),
   phone: z.string().min(8).max(20),
   password: z.string().min(8).max(128),
 });
@@ -88,10 +86,9 @@ export const customerRegisterSchema = z.object({
  * Requirements: 14.1
  */
 export const customerLoginSchema = z.object({
-  email: z.string().email(),
+  phone: z.string().min(8).max(20),
   password: z.string().min(1),
 });
-
 // ─── Customer Profile Schemas ────────────────────────────────────────────────
 
 /**
@@ -102,11 +99,9 @@ export const customerLoginSchema = z.object({
 export const updateProfileSchema = z.object({
   first_name: z.string().min(1).max(100).optional(),
   last_name: z.string().min(1).max(100).optional(),
-  email: z.string().email().max(255).optional(),
   phone: z.string().min(8).max(20).optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
   birth_date: z.coerce.date().optional(),
-  accepts_marketing: z.boolean().optional(),
 });
 
 // ─── Address Schemas ─────────────────────────────────────────────────────────
@@ -123,11 +118,18 @@ export const addAddressSchema = z.object({
   type: z.enum(["SHIPPING", "BILLING", "OTHER"]).default("OTHER"),
   phone: z.string().min(8).max(20).optional(),
   region: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
   street_line_2: z.string().max(300).optional(),
   postal_code: z.string().max(20).optional(),
   google_maps_url: z.string().url().optional(),
   is_default: z.boolean().default(false),
 });
+
+export const updateAddressSchema = addAddressSchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field is required",
+  });
 
 // ─── Order Lookup Schemas ────────────────────────────────────────────────────
 

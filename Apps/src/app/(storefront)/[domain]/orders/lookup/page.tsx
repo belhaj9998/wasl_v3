@@ -12,16 +12,18 @@ import { useTranslations } from "next-intl";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Search, Package } from "lucide-react";
+import { Search } from "lucide-react";
 
-import { storefrontService } from "@/lib/api/services/storefront.service";
+import {
+  storefrontService,
+  type StorefrontOrderLookup,
+} from "@/lib/api/services/storefront.service";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { FormError, SubmitButton } from "@/components/forms";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import type { Order } from "@/types";
 
 const lookupSchema = z.object({
   order_number: z
@@ -30,7 +32,7 @@ const lookupSchema = z.object({
     .max(50, "Order number must not exceed 50 characters"),
   phone: z
     .string()
-    .min(1, "Phone or email is required")
+    .min(1, "Phone number is required")
     .max(255, "Must not exceed 255 characters"),
 });
 
@@ -55,12 +57,22 @@ function getOrderStatusVariant(status: string) {
   }
 }
 
+function formatOrderDate(value?: string | null, fallback?: string | null) {
+  const dateValue = value || fallback;
+  if (!dateValue) {
+    return "-";
+  }
+
+  const date = new Date(dateValue);
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
+}
+
 export default function StorefrontOrderLookupPage() {
   const params = useParams();
   const domain = params.domain as string;
   const t = useTranslations("storefront");
 
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<StorefrontOrderLookup | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -79,7 +91,7 @@ export default function StorefrontOrderLookupPage() {
         order_number: data.order_number,
         phone: data.phone,
       });
-      setOrder(response.data);
+      setOrder(response.data.order);
     } catch (err: unknown) {
       const apiError = err as { status?: number; message?: string };
       if (apiError.status === 404) {
@@ -93,6 +105,10 @@ export default function StorefrontOrderLookupPage() {
       }
     }
   };
+
+  const shippingAddress =
+    order?.addresses?.find((address) => address.type === "SHIPPING") ??
+    order?.addresses?.[0];
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -163,7 +179,10 @@ export default function StorefrontOrderLookupPage() {
               <div>
                 <span className="text-muted-foreground">{t("date")}</span>
                 <p className="font-medium">
-                  {new Date(order.created_at).toLocaleDateString()}
+                  {formatOrderDate(
+                    order.placed_at,
+                    order.timeline?.[0]?.created_at,
+                  )}
                 </p>
               </div>
               <div>
@@ -173,14 +192,10 @@ export default function StorefrontOrderLookupPage() {
                 <p className="font-medium">{order.payment_status}</p>
               </div>
               <div>
-                <span className="text-muted-foreground">
-                  {t("paymentMethod")}
-                </span>
-                <p className="font-medium">{order.payment_method}</p>
-              </div>
-              <div>
                 <span className="text-muted-foreground">{t("total")}</span>
-                <p className="font-bold text-primary">{order.total} د.ل</p>
+                <p className="font-bold text-primary">
+                  {order.grand_total} د.ل
+                </p>
               </div>
             </div>
 
@@ -197,7 +212,7 @@ export default function StorefrontOrderLookupPage() {
                         {item.product_name} × {item.quantity}
                       </span>
                       <span className="font-medium">
-                        {item.total_price || item.unit_price} د.ل
+                        {item.line_total || item.unit_price} د.ل
                       </span>
                     </div>
                   ))}
@@ -208,21 +223,20 @@ export default function StorefrontOrderLookupPage() {
             <Separator />
 
             {/* Shipping Address */}
-            {order.shipping_address && (
+            {shippingAddress && (
               <div>
                 <h2 className="text-sm font-semibold mb-2">
                   {t("shippingAddress")}
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  {order.shipping_address.full_name}
+                  {shippingAddress.full_name}
                   <br />
-                  {order.shipping_address.street_line_1}
-                  {order.shipping_address.street_line_2 &&
-                    `, ${order.shipping_address.street_line_2}`}
+                  {shippingAddress.street_line_1}
+                  {shippingAddress.street_line_2 &&
+                    `, ${shippingAddress.street_line_2}`}
                   <br />
-                  {order.shipping_address.city}
-                  {order.shipping_address.state &&
-                    `, ${order.shipping_address.state}`}
+                  {shippingAddress.city}
+                  {shippingAddress.region && `, ${shippingAddress.region}`}
                 </p>
               </div>
             )}
@@ -240,7 +254,9 @@ export default function StorefrontOrderLookupPage() {
                       <div key={index} className="flex gap-3 text-sm">
                         <div className="w-2 h-2 rounded-full bg-primary mt-1.5 flex-shrink-0" />
                         <div>
-                          <p className="text-foreground">{event.description}</p>
+                          <p className="text-foreground">
+                            {event.note || event.event}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {new Date(event.created_at).toLocaleString()}
                           </p>
@@ -259,15 +275,15 @@ export default function StorefrontOrderLookupPage() {
                 <span className="text-muted-foreground">{t("subtotal")}</span>
                 <span>{order.subtotal} د.ل</span>
               </div>
-              {order.discount_amount && order.discount_amount !== "0" && (
+              {order.discount_total && order.discount_total !== "0" && (
                 <div className="flex justify-between text-green-600">
                   <span>{t("discount")}</span>
-                  <span>-{order.discount_amount} د.ل</span>
+                  <span>-{order.discount_total} د.ل</span>
                 </div>
               )}
               <div className="flex justify-between font-bold text-base pt-2">
                 <span>{t("total")}</span>
-                <span className="text-primary">{order.total} د.ل</span>
+                <span className="text-primary">{order.grand_total} د.ل</span>
               </div>
             </div>
           </CardContent>

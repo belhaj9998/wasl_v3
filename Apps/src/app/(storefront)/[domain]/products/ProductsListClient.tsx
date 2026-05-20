@@ -84,9 +84,8 @@ function ProductsListContent() {
       .then((res) => {
         if (res.data) {
           // Flatten categories tree for filter display
-          const flatCategories = flattenCategories(
-            Array.isArray(res.data) ? res.data : [res.data],
-          );
+          const flatCategories = flattenCategories(res.data.categories ?? []);
+          setCategories(flatCategories);
           setCategories(flatCategories);
         }
       })

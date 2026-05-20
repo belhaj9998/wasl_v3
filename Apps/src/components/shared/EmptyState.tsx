@@ -47,8 +47,15 @@ export function EmptyState({
       );
     }
     // Check if icon is a LucideIcon component (function component)
-    if (typeof icon === "function") {
-      const IconComponent = icon as LucideIcon;
+    if (React.isValidElement(icon)) {
+      return icon;
+    }
+
+    if (
+      typeof icon === "function" ||
+      (typeof icon === "object" && icon !== null && "render" in icon)
+    ) {
+      const IconComponent = icon as React.ElementType;
       return (
         <IconComponent
           className="h-8 w-8 text-muted-foreground"
@@ -56,7 +63,7 @@ export function EmptyState({
         />
       );
     }
-    // Otherwise it's a ReactNode
+
     return icon;
   };
 

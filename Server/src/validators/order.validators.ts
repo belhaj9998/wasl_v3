@@ -16,7 +16,6 @@ export const createCustomerSchema = z.object({
   birth_date: z.coerce.date().optional(),
   notes: z.string().max(1000).optional(),
   status: z.enum(["ACTIVE", "BLOCKED", "ARCHIVED"]).optional(),
-  accepts_marketing: z.boolean().optional(),
 });
 
 /**
@@ -33,12 +32,11 @@ export const updateCustomerSchema = z.object({
   birth_date: z.coerce.date().nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
   status: z.enum(["ACTIVE", "BLOCKED", "ARCHIVED"]).optional(),
-  accepts_marketing: z.boolean().optional(),
 });
 
 /**
  * Customer list query schema.
- * Supports pagination, search, status filter, accepts_marketing filter, and sorting.
+ * Supports pagination, search, status filter, and sorting.
  * Validates: Requirements 2.2
  */
 export const customerListQuerySchema = z.object({
@@ -46,7 +44,6 @@ export const customerListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().max(200).optional(),
   status: z.enum(["ACTIVE", "BLOCKED", "ARCHIVED"]).optional(),
-  accepts_marketing: z.enum(["true", "false"]).optional(),
   sort_by: z
     .enum(["created_at", "first_name", "last_name"])
     .optional()

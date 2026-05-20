@@ -402,7 +402,7 @@ export default function MembersPage() {
               <DropdownMenuContent align="end">
                 {/* Change Role — exclude owner */}
                 {!memberIsOwner && !isSelf && (
-                  <PermissionGate permission="member:update">
+                  <PermissionGate permission="staff.manage">
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <RefreshCw className="me-2 h-4 w-4" />
@@ -426,7 +426,7 @@ export default function MembersPage() {
                 )}
 
                 {/* Resend Invite */}
-                <PermissionGate permission="member:create">
+                <PermissionGate permission="staff.manage">
                   <DropdownMenuItem
                     onClick={() => handleResendInvite(member)}
                     disabled={actionLoading}
@@ -440,7 +440,7 @@ export default function MembersPage() {
                 {!memberIsOwner && !isSelf && (
                   <>
                     <DropdownMenuSeparator />
-                    <PermissionGate permission="member:delete">
+                    <PermissionGate permission="staff.manage">
                       <DropdownMenuItem
                         onClick={() => setRemoveDialog({ open: true, member })}
                         disabled={actionLoading}
@@ -473,7 +473,7 @@ export default function MembersPage() {
         </div>
 
         {/* Invite Member button — permission-gated */}
-        <PermissionGate permission="member:create">
+        <PermissionGate permission="staff.manage">
           <Button onClick={() => setInviteOpen(true)}>
             <Plus className="me-2 h-4 w-4" />
             دعوة عضو

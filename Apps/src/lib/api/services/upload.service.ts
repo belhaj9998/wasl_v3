@@ -4,32 +4,31 @@
  */
 
 import { apiClient } from "@/lib/api/client";
+import { API_ENDPOINTS } from "@/lib/constants";
 import type { ApiResponse } from "@/types";
 
 export interface UploadResult {
   url: string;
   key: string;
-  filename: string;
+  originalName: string;
   size: number;
-  mime_type: string;
+  mimetype: string;
 }
 
 export const uploadService = {
   uploadImage(storeId: number, file: File) {
     const formData = new FormData();
-    formData.append("image", file);
+    formData.append("file", file);
 
-    return apiClient<ApiResponse<UploadResult>>(
-      `/stores/${storeId}/uploads/images`,
+    return apiClient<ApiResponse<{ file: UploadResult }>>(
+      API_ENDPOINTS.UPLOAD.IMAGE,
       {
         method: "POST",
-        body: formData as unknown,
+        body: formData,
         storeId,
-        headers: {
-          // Let browser set Content-Type with boundary for multipart
-          "Content-Type": "",
-        },
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.file }) as ApiResponse<UploadResult>,
     );
   },
 
@@ -37,27 +36,22 @@ export const uploadService = {
     const formData = new FormData();
     formData.append("file", file);
 
-    return apiClient<ApiResponse<UploadResult>>(
-      `/stores/${storeId}/uploads/files`,
+    return apiClient<ApiResponse<{ file: UploadResult }>>(
+      API_ENDPOINTS.UPLOAD.FILE,
       {
         method: "POST",
-        body: formData as unknown,
+        body: formData,
         storeId,
-        headers: {
-          // Let browser set Content-Type with boundary for multipart
-          "Content-Type": "",
-        },
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.file }) as ApiResponse<UploadResult>,
     );
   },
 
   deleteFile(storeId: number, fileKey: string) {
-    return apiClient<ApiResponse<null>>(
-      `/stores/${storeId}/uploads/${encodeURIComponent(fileKey)}`,
-      {
-        method: "DELETE",
-        storeId,
-      },
-    );
+    return apiClient<ApiResponse<null>>(API_ENDPOINTS.UPLOAD.DELETE(fileKey), {
+      method: "DELETE",
+      storeId,
+    });
   },
 };

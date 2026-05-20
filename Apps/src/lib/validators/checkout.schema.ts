@@ -17,11 +17,6 @@ export const checkoutCustomerSchema = z.object({
   customer_phone: z
     .string()
     .regex(/^\+218[0-9]{9}$/, "Phone must match Libyan format +218XXXXXXXXX"),
-  customer_email: z
-    .string()
-    .email("Invalid email format")
-    .optional()
-    .or(z.literal("")),
 });
 
 // Step 2: Shipping Address
@@ -60,11 +55,6 @@ export const checkoutSchema = z.object({
   customer_phone: z
     .string()
     .regex(/^\+218[0-9]{9}$/, "Phone must match Libyan format +218XXXXXXXXX"),
-  customer_email: z
-    .string()
-    .email("Invalid email format")
-    .optional()
-    .or(z.literal("")),
   shipping_address: z.object({
     full_name: z
       .string()

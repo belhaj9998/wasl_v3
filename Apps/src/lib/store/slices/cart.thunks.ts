@@ -70,6 +70,7 @@ export const addToCartThunk = createAsyncThunk<
 
     try {
       const response = await storefrontService.addToCart(domain, {
+        product_id: productId,
         variant_id: variantId,
         quantity,
       });
@@ -202,14 +203,16 @@ export const removeCouponThunk = createAsyncThunk<
  * Extract cart state snapshot for rollback purposes.
  */
 function selectCartSnapshot(state: RootState): CartState {
+  const cart = state.cart;
+
   return {
-    items: [...state.cart.items],
-    subtotal: state.cart.subtotal,
-    discount_amount: state.cart.discount_amount,
-    total: state.cart.total,
-    coupon: state.cart.coupon,
-    loading: state.cart.loading,
-    error: state.cart.error,
+    items: [...(cart.items ?? [])],
+    subtotal: cart.subtotal ?? "0",
+    discount_amount: cart.discount_amount ?? "0",
+    total: cart.total ?? "0",
+    coupon: cart.coupon ?? null,
+    loading: cart.loading ?? false,
+    error: cart.error ?? null,
   };
 }
 
@@ -217,24 +220,28 @@ function selectCartSnapshot(state: RootState): CartState {
  * Map API cart response to CartState shape.
  */
 function mapCartResponse(data: unknown): CartState {
-  const cart = data as {
-    items: CartItem[];
-    subtotal: string;
-    discount_amount: string;
-    total: string;
-    coupon: CartState["coupon"];
+  const response = data as {
+    cart?: {
+      items?: CartItem[];
+      subtotal?: string;
+      discount_total?: string;
+      grand_total?: string;
+      coupon?: CartState["coupon"];
+    };
   };
+
+  const cart = response.cart ?? {};
+
   return {
     items: cart.items ?? [],
     subtotal: cart.subtotal ?? "0",
-    discount_amount: cart.discount_amount ?? "0",
-    total: cart.total ?? "0",
+    discount_amount: cart.discount_total ?? "0",
+    total: cart.grand_total ?? "0",
     coupon: cart.coupon ?? null,
     loading: false,
     error: null,
   };
 }
-
 /**
  * Extract error message from unknown error.
  */

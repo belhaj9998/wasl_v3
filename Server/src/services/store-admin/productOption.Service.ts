@@ -65,6 +65,20 @@ export class ProductOptionService {
 
     return options;
   }
+  async getById(storeId: number, productId: number, optionId: number) {
+    const option = await prisma.productOption.findFirst({
+      where: { id: optionId, product_id: productId, store_id: storeId },
+      include: {
+        values: { orderBy: { position: "asc" } },
+      },
+    });
+
+    if (!option) {
+      throw AppError.notFound("Product option not found");
+    }
+
+    return option;
+  }
 
   /**
    * Creates a new product option.
@@ -241,7 +255,7 @@ export class ProductOptionService {
     }
 
     // Create the option value
-    const optionValue = await prisma.productOptionValue.create({
+    await prisma.productOptionValue.create({
       data: {
         store_id: storeId,
         option_id: optionId,
@@ -250,7 +264,7 @@ export class ProductOptionService {
       },
     });
 
-    return optionValue;
+    return this.getById(storeId, productId, optionId);
   }
 
   /**
@@ -307,12 +321,12 @@ export class ProductOptionService {
       updateData.position = data.position;
     }
 
-    const updated = await prisma.productOptionValue.update({
+    await prisma.productOptionValue.update({
       where: { id_store_id: { id: valueId, store_id: storeId } },
       data: updateData,
     });
 
-    return updated;
+    return this.getById(storeId, productId, optionId);
   }
 
   /**
@@ -347,6 +361,7 @@ export class ProductOptionService {
     await prisma.productOptionValue.delete({
       where: { id_store_id: { id: valueId, store_id: storeId } },
     });
+    return this.getById(storeId, productId, optionId);
   }
 }
 

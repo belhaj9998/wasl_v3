@@ -18,61 +18,61 @@ const ALL_SIDEBAR_ITEMS: SidebarItem[] = [
     path: "/admin/dashboard",
     label: "لوحة التحكم",
     icon: "LayoutDashboard",
-    permission: "dashboard:view",
+    permission: "analytics.view",
   },
   {
     path: "/admin/products",
     label: "المنتجات",
     icon: "Package",
-    permission: "product:view",
+    permission: "products.view",
   },
   {
     path: "/admin/categories",
     label: "الفئات",
     icon: "FolderTree",
-    permission: "category:view",
+    permission: "catalog.view",
   },
   {
     path: "/admin/orders",
     label: "الطلبات",
     icon: "ShoppingCart",
-    permission: "order:view",
+    permission: "orders.view",
   },
   {
     path: "/admin/customers",
     label: "العملاء",
     icon: "Users",
-    permission: "customer:view",
+    permission: "customers.view",
   },
   {
     path: "/admin/coupons",
     label: "الكوبونات",
     icon: "Ticket",
-    permission: "coupon:view",
+    permission: "coupons.manage",
   },
   {
     path: "/admin/inventory",
     label: "المخزون",
     icon: "Warehouse",
-    permission: "inventory:view",
+    permission: "inventory.view",
   },
   {
     path: "/admin/members",
     label: "الأعضاء",
     icon: "UserPlus",
-    permission: "member:view",
+    permission: "staff.manage",
   },
   {
     path: "/admin/roles",
     label: "الأدوار",
     icon: "Shield",
-    permission: "role:view",
+    permission: "staff.manage",
   },
   {
     path: "/admin/settings",
     label: "الإعدادات",
     icon: "Settings",
-    permission: "store:view",
+    permission: "settings.manage",
   },
 ];
 
@@ -102,7 +102,7 @@ export function buildSidebarItems(permissions: string[]): SidebarItem[] {
 /**
  * Checks if a user can perform a specific action.
  * @param permissions - Array of permission strings the user has
- * @param action - The action permission string to check (e.g., "product:create")
+ * @param action - The action permission string to check (e.g., "products.create")
  * @returns true if the action is in the permissions array
  */
 export function canPerformAction(

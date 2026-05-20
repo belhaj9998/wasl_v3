@@ -83,14 +83,14 @@ export const addValue = asyncHandler(async (req: AppRequest, res: Response) => {
   const optionId = parseInt(req.params.optionId as string, 10);
   const { value, position } = req.body;
 
-  const optionValue = await productOptionService.addValue(
+  const option = await productOptionService.addValue(
     storeId,
     productId,
     optionId,
     { value, position },
   );
 
-  sendSuccess(res, { optionValue }, "Option value added", 201);
+  sendSuccess(res, { option }, "Option value added", 201);
 });
 
 /**
@@ -105,7 +105,7 @@ export const updateValue = asyncHandler(
     const valueId = parseInt(req.params.valueId as string, 10);
     const { value, position } = req.body;
 
-    const optionValue = await productOptionService.updateValue(
+    const option = await productOptionService.updateValue(
       storeId,
       productId,
       optionId,
@@ -113,7 +113,7 @@ export const updateValue = asyncHandler(
       { value, position },
     );
 
-    sendSuccess(res, { optionValue }, "Option value updated");
+    sendSuccess(res, { option }, "Option value updated");
   },
 );
 
@@ -128,13 +128,13 @@ export const deleteValue = asyncHandler(
     const optionId = parseInt(req.params.optionId as string, 10);
     const valueId = parseInt(req.params.valueId as string, 10);
 
-    await productOptionService.deleteValue(
+    const option = await productOptionService.deleteValue(
       storeId,
       productId,
       optionId,
       valueId,
     );
 
-    sendSuccess(res, null, "Option value deleted");
+    sendSuccess(res, { option }, "Option value deleted");
   },
 );

@@ -2,7 +2,7 @@
 
 /**
  * CustomerForm — Reusable form for creating and editing customers.
- * Fields: first_name, last_name, email, phone, notes, status, gender, birth_date, accepts_marketing.
+ * Fields: first_name, last_name, email, phone, notes, status, gender, birth_date.
  * Validates: at least one of email/phone required, email max 255, phone 8-20, notes max 1000.
  * Handles 409 for duplicate email/phone.
  *
@@ -20,7 +20,6 @@ import { FormError } from "@/components/forms/FormError";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   customerSchema,
   type CustomerFormData,
@@ -59,7 +58,6 @@ export function CustomerForm({
       status: "ACTIVE",
       gender: "",
       birth_date: "",
-      accepts_marketing: false,
     },
   });
 
@@ -75,7 +73,6 @@ export function CustomerForm({
         status: customer.status || "ACTIVE",
         gender: customer.gender || "",
         birth_date: customer.birth_date ? customer.birth_date.slice(0, 10) : "",
-        accepts_marketing: customer.accepts_marketing ?? false,
       });
     }
   }, [customer, reset]);
@@ -230,24 +227,6 @@ export function CustomerForm({
         label="ملاحظات"
         type="textarea"
         placeholder="ملاحظات حول العميل (اختياري، حد أقصى 1000 حرف)"
-      />
-
-      {/* Accepts marketing */}
-      <Controller
-        control={control}
-        name="accepts_marketing"
-        render={({ field }) => (
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <Label htmlFor="accepts_marketing" className="cursor-pointer">
-              يقبل التسويق
-            </Label>
-            <Switch
-              id="accepts_marketing"
-              checked={field.value ?? false}
-              onCheckedChange={field.onChange}
-            />
-          </div>
-        )}
       />
 
       {/* Actions */}

@@ -14,9 +14,14 @@ import { API_BASE_URL, API_ENDPOINTS } from "@/lib/constants";
 
 let _accessToken: string | null = null;
 let _customerToken: string | null = null;
-
+let _refreshPromise: Promise<boolean> | null = null;
 export function setAccessToken(token: string | null): void {
   _accessToken = token;
+}
+let _suppressSessionExpiredRedirect = false;
+
+export function setSuppressSessionExpiredRedirect(value: boolean): void {
+  _suppressSessionExpiredRedirect = value;
 }
 
 export function getAccessToken(): string | null {
@@ -41,6 +46,7 @@ export interface ApiClientOptions {
   storeId?: number;
   headers?: Record<string, string>;
   _isRetry?: boolean;
+  skipAuthRedirect?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,35 +54,44 @@ export interface ApiClientOptions {
 // ---------------------------------------------------------------------------
 
 async function attemptRefresh(): Promise<boolean> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      return false;
-    }
-
-    const result = await response.json();
-
-    if (result.data?.accessToken) {
-      setAccessToken(result.data.accessToken);
-      return true;
-    }
-
-    return false;
-  } catch {
-    return false;
+  if (_refreshPromise) {
+    return _refreshPromise;
   }
-}
 
+  _refreshPromise = (async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}${API_ENDPOINTS.AUTH.REFRESH}`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const result = await response.json();
+
+      if (result.data?.accessToken) {
+        setAccessToken(result.data.accessToken);
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+
+  return _refreshPromise;
+}
 // ---------------------------------------------------------------------------
 // Core API client function
 // ---------------------------------------------------------------------------
@@ -91,13 +106,23 @@ export async function apiClient<T>(
     storeId,
     headers: customHeaders,
     _isRetry = false,
+    skipAuthRedirect = false,
   } = options;
 
   // Build headers — Content-Type defaults to application/json with override support
+  const isFormData =
+    typeof FormData !== "undefined" && body instanceof FormData;
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...customHeaders,
   };
+
+  for (const key of Object.keys(headers)) {
+    if (!headers[key]) {
+      delete headers[key];
+    }
+  }
 
   // Attach admin access token if available
   if (_accessToken) {
@@ -120,8 +145,13 @@ export async function apiClient<T>(
   };
 
   // Attach body for non-GET requests
+  // Attach body for non-GET requests
   if (body !== undefined && method !== "GET") {
-    fetchOptions.body = typeof body === "string" ? body : JSON.stringify(body);
+    fetchOptions.body = isFormData
+      ? (body as FormData)
+      : typeof body === "string"
+        ? body
+        : JSON.stringify(body);
   }
 
   const response = await fetch(`${API_BASE_URL}${url}`, fetchOptions);
@@ -139,10 +169,13 @@ export async function apiClient<T>(
     setAccessToken(null);
     setCustomerToken(null);
 
-    if (typeof window !== "undefined") {
+    if (
+      typeof window !== "undefined" &&
+      !_suppressSessionExpiredRedirect &&
+      !skipAuthRedirect
+    ) {
       window.location.href = "/login?session_expired=true";
     }
-
     throw new Error("Session expired");
   }
 

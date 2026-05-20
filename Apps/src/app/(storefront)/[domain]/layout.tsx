@@ -48,8 +48,8 @@ export default function StorefrontLayout({
         ]);
 
         if (!cancelled) {
-          setStore(storeRes.data);
-          setCategories(categoriesRes.data);
+          setStore(storeRes.data.store);
+          setCategories(categoriesRes.data.categories ?? []);
         }
       } catch (err: unknown) {
         if (!cancelled) {

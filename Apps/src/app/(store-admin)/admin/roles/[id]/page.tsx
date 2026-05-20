@@ -64,7 +64,7 @@ export default function RoleDetailPage() {
   // State
   const [role, setRole] = useState<Role | null>(null);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -131,32 +131,32 @@ export default function RoleDetailPage() {
 
   // ========== Permission Toggle Handlers ==========
 
-  const handleToggle = useCallback((code: string) => {
+  const handleToggle = useCallback((permissionId: number) => {
     setSelectedPermissions((prev) =>
-      prev.includes(code) ? prev.filter((p) => p !== code) : [...prev, code],
+      prev.includes(permissionId)
+        ? prev.filter((id) => id !== permissionId)
+        : [...prev, permissionId],
     );
   }, []);
 
   const handleToggleGroup = useCallback(
     (perms: Permission[]) => {
-      const codes = perms.map((p) => p.code);
-      const allSelected = codes.every((c) => selectedPermissions.includes(c));
+      const ids = perms.map((p) => p.id);
+      const allSelected = ids.every((id) => selectedPermissions.includes(id));
 
       if (allSelected) {
         setSelectedPermissions((prev) =>
-          prev.filter((p) => !codes.includes(p)),
+          prev.filter((id) => !ids.includes(id)),
         );
       } else {
         setSelectedPermissions((prev) => [
           ...prev,
-          ...codes.filter((c) => !prev.includes(c)),
+          ...ids.filter((id) => !prev.includes(id)),
         ]);
       }
     },
     [selectedPermissions],
   );
-
-  // ========== Save Permissions ==========
 
   const handleSave = useCallback(async () => {
     if (!currentStoreId || !roleId) return;
@@ -164,7 +164,7 @@ export default function RoleDetailPage() {
     setIsSaving(true);
     try {
       await roleService.updatePermissions(currentStoreId, roleId, {
-        permissions: selectedPermissions,
+        permission_ids: selectedPermissions,
       });
       toast.success(tSuccess("role.permissionsUpdated"));
     } catch (err: unknown) {
@@ -177,7 +177,6 @@ export default function RoleDetailPage() {
       setIsSaving(false);
     }
   }, [currentStoreId, roleId, selectedPermissions, t, tSuccess]);
-
   // ========== Loading State ==========
 
   if (loading) {
@@ -263,13 +262,12 @@ export default function RoleDetailPage() {
       {/* Permissions grouped by module */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {groupedPermissions.map(([group, perms]) => {
-          const codes = perms.map((p) => p.code);
-          const allSelected = codes.every((c) =>
-            selectedPermissions.includes(c),
+          const ids = perms.map((p) => p.id);
+          const allSelected = ids.every((id) =>
+            selectedPermissions.includes(id),
           );
           const someSelected =
-            !allSelected && codes.some((c) => selectedPermissions.includes(c));
-
+            !allSelected && ids.some((id) => selectedPermissions.includes(id));
           return (
             <Card key={group}>
               <CardHeader className="pb-3">
@@ -301,7 +299,7 @@ export default function RoleDetailPage() {
                   </fieldset>
                   <Badge variant="secondary" className="text-xs">
                     {
-                      codes.filter((c) => selectedPermissions.includes(c))
+                      ids.filter((id) => selectedPermissions.includes(id))
                         .length
                     }
                     /{perms.length}
@@ -313,8 +311,8 @@ export default function RoleDetailPage() {
                   <div key={perm.code} className="flex items-center gap-2">
                     <Checkbox
                       id={`perm-${perm.code}`}
-                      checked={selectedPermissions.includes(perm.code)}
-                      onCheckedChange={() => handleToggle(perm.code)}
+                      checked={selectedPermissions.includes(perm.id)}
+                      onCheckedChange={() => handleToggle(perm.id)}
                       aria-label={perm.name || perm.code}
                     />
                     <Label

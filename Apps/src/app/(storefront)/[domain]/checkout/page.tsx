@@ -100,7 +100,6 @@ export default function StorefrontCheckoutPage() {
       const response = await storefrontService.checkout(domain, {
         customer_name: customerData.customer_name,
         customer_phone: customerData.customer_phone,
-        customer_email: customerData.customer_email || undefined,
         shipping_address: {
           full_name: addressData.full_name,
           city: addressData.city,
@@ -113,8 +112,7 @@ export default function StorefrontCheckoutPage() {
         notes_from_customer: paymentData.notes_from_customer || undefined,
       });
 
-      const order = response.data;
-      // Store order data in sessionStorage for the confirmation page
+      const order = response.data.order; // Store order data in sessionStorage for the confirmation page
       try {
         sessionStorage.setItem(
           "wasl_order_confirmation",

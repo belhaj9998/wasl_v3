@@ -368,7 +368,7 @@ export default function ProductsPageClient() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {/* Edit */}
-                <PermissionGate permission="product:update">
+                <PermissionGate permission="products.update">
                   <DropdownMenuItem
                     onClick={() =>
                       router.push(ROUTES.STORE_ADMIN.PRODUCT_EDIT(product.id))
@@ -380,7 +380,7 @@ export default function ProductsPageClient() {
                 </PermissionGate>
 
                 {/* Duplicate */}
-                <PermissionGate permission="product:create">
+                <PermissionGate permission="products.create">
                   <DropdownMenuItem
                     onClick={() => handleDuplicate(product)}
                     disabled={actionLoading}
@@ -392,7 +392,7 @@ export default function ProductsPageClient() {
 
                 {/* Change Status */}
                 {availableTransitions.length > 0 && (
-                  <PermissionGate permission="product:update">
+                  <PermissionGate permission="products.update">
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
                         <RefreshCw className="me-2 h-4 w-4" />
@@ -416,7 +416,7 @@ export default function ProductsPageClient() {
                 <DropdownMenuSeparator />
 
                 {/* Delete */}
-                <PermissionGate permission="product:delete">
+                <PermissionGate permission="products.delete">
                   <DropdownMenuItem
                     onClick={() => setDeleteDialog({ open: true, product })}
                     disabled={actionLoading}
@@ -445,7 +445,7 @@ export default function ProductsPageClient() {
         </div>
 
         {/* Add Product button — permission-gated */}
-        <PermissionGate permission="product:create">
+        <PermissionGate permission="products.create">
           <Button
             onClick={() => router.push(ROUTES.STORE_ADMIN.PRODUCT_CREATE)}
           >

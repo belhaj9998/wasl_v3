@@ -67,7 +67,6 @@ export interface Customer {
   status: CustomerStatus;
   gender: string | null;
   birth_date: string | null;
-  accepts_marketing: boolean;
   notes: string | null;
   total_orders: number;
   total_spent: string;

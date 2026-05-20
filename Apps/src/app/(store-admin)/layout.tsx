@@ -66,6 +66,8 @@ interface StoreSelectionPromptProps {
   maxStores: number | null;
   hasActiveSubscription: boolean;
   onStoreCreated: (newStore: Store) => void;
+  storesError: string | null;
+  onRetry: () => void;
 }
 
 function StoreSelectionPrompt({
@@ -76,9 +78,19 @@ function StoreSelectionPrompt({
   maxStores,
   hasActiveSubscription,
   onStoreCreated,
+  storesError,
+  onRetry,
 }: StoreSelectionPromptProps) {
   const t = useTranslations("store");
+  const tAuth = useTranslations("auth");
+  const { user, logout } = useAuth();
+  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace(ROUTES.AUTH.LOGIN);
+  };
 
   if (loading) {
     return (
@@ -95,6 +107,26 @@ function StoreSelectionPrompt({
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <div className="w-full max-w-md space-y-6 text-center">
+        <div className="flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-start">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-foreground">
+              {user?.name}
+            </p>
+            <p className="truncate text-xs text-muted-foreground">
+              {user?.email}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleLogout}
+          >
+            <LogOut className="me-2 h-4 w-4" />
+            {tAuth("logout")}
+          </Button>
+        </div>
+
         <div className="flex justify-center">
           <Logo size="lg" />
         </div>
@@ -107,7 +139,19 @@ function StoreSelectionPrompt({
           </p>
         </div>
 
-        {stores.length === 0 ? (
+        {storesError ? (
+          <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-6">
+            <p className="text-sm text-destructive">{storesError}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={onRetry}
+            >
+              إعادة المحاولة
+            </Button>
+          </div>
+        ) : stores.length === 0 ? (
           <div className="rounded-lg border bg-card p-6">
             <StoreIcon className="mx-auto h-12 w-12 text-muted-foreground" />
             <p className="mt-4 text-muted-foreground">{t("noStores")}</p>
@@ -225,6 +269,12 @@ function StoreAdminHeader({
   const tLang = useTranslations("language");
   const tA11y = useTranslations("accessibility.buttons");
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = useCallback(async () => {
+    await logout();
+    router.replace(ROUTES.AUTH.LOGIN);
+  }, [logout, router]);
 
   const toggleLocale = () => {
     const newLocale: SupportedLocale = locale === "ar" ? "en" : "ar";
@@ -337,7 +387,7 @@ function StoreAdminHeader({
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => logout()}>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOut className="me-2 h-4 w-4" />
               {tAuth("logout")}
             </DropdownMenuItem>
@@ -355,7 +405,7 @@ export default function StoreAdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { currentStoreId, switchStore } = useStore();
+  const { currentStoreId, permissions, switchStore } = useStore();
   const { user } = useAuth();
   const router = useRouter();
   const tCreateStore = useTranslations("createStore");
@@ -363,6 +413,7 @@ export default function StoreAdminLayout({
   const [storesLoading, setStoresLoading] = useState(true);
   const [subscriptionInfo, setSubscriptionInfo] =
     useState<UserSubscriptionInfo | null>(null);
+  const [storesError, setStoresError] = useState<string | null>(null);
 
   // Validate session on mount — calls /auth/me and redirects on failure
   useSessionValidator();
@@ -371,6 +422,7 @@ export default function StoreAdminLayout({
   const fetchUserStores = useCallback(async () => {
     try {
       setStoresLoading(true);
+      setStoresError(null);
       const [storesResponse, subscriptionResponse] = await Promise.allSettled([
         apiClient<ApiResponse<Store[]>>("/auth/me/stores"),
         storeService.getUserSubscriptionInfo(),
@@ -378,8 +430,9 @@ export default function StoreAdminLayout({
 
       if (storesResponse.status === "fulfilled") {
         setUserStores(storesResponse.value.data);
+        setStoresError(null);
       } else {
-        setUserStores([]);
+        setStoresError("تعذر تحميل المتاجر. حاول مرة أخرى.");
       }
 
       if (subscriptionResponse.status === "fulfilled") {
@@ -389,7 +442,7 @@ export default function StoreAdminLayout({
         setSubscriptionInfo(null);
       }
     } catch {
-      setUserStores([]);
+      setStoresError("تعذر تحميل المتاجر. حاول مرة أخرى.");
       setSubscriptionInfo(null);
     } finally {
       setStoresLoading(false);
@@ -401,17 +454,26 @@ export default function StoreAdminLayout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // Restore persisted store on mount if currentStoreId is set but permissions not loaded
   useEffect(() => {
-    if (currentStoreId && !storesLoading && userStores.length > 0) {
-      // Verify the persisted store is still in user's stores
-      const storeExists = userStores.some((s) => s.id === currentStoreId);
-      if (!storeExists) {
-        // Persisted store no longer accessible, clear it
-        localStorage.removeItem(STORAGE_KEYS.CURRENT_STORE_ID);
-      }
+    if (!currentStoreId || storesLoading || userStores.length === 0) return;
+
+    const storeExists = userStores.some((store) => store.id === currentStoreId);
+
+    if (!storeExists) {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_STORE_ID);
+      return;
     }
-  }, [currentStoreId, storesLoading, userStores]);
+
+    if (permissions.length > 0) return;
+
+    void switchStore(currentStoreId);
+  }, [
+    currentStoreId,
+    storesLoading,
+    userStores,
+    permissions.length,
+    switchStore,
+  ]);
 
   const handleStoreSelect = useCallback(
     (storeId: number) => {
@@ -472,6 +534,8 @@ export default function StoreAdminLayout({
             subscriptionInfo?.hasActiveSubscription ?? false
           }
           onStoreCreated={handleStoreCreatedFromPrompt}
+          storesError={storesError}
+          onRetry={fetchUserStores}
         />
       </StoreSubscriptionContext.Provider>
     );

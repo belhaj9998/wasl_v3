@@ -85,15 +85,12 @@ export const lookupOrder = asyncHandler(
     }
 
     // Verify the verification_value matches customer_email (case-insensitive) or customer_phone (exact)
-    const emailMatch =
-      order.customer_email &&
-      order.customer_email.toLowerCase() === verification_value.toLowerCase();
+    // Verify the verification_value matches customer_phone
     const phoneMatch = order.customer_phone === verification_value;
 
-    if (!emailMatch && !phoneMatch) {
-      throw AppError.notFound("Order not found");
+    if (!phoneMatch) {
+      throw AppError.unauthorized("Invalid verification value");
     }
-
     // Return order data excluding internal/admin-only fields
     const result = {
       order_number: order.order_number,

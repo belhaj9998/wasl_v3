@@ -23,7 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const loginSchema = z.object({
-  email: z.string().email("Invalid email format"),
+  phone: z
+    .string()
+    .min(8, "Phone must be at least 8 characters")
+    .max(20, "Phone must not exceed 20 characters"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -71,15 +74,16 @@ export default function StorefrontLoginPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div>
-              <Label htmlFor="email">{t("email")}</Label>
+              <Label htmlFor="phone">{t("phone")}</Label>
               <Input
-                id="email"
-                type="email"
-                {...register("email")}
+                id="phone"
+                type="tel"
+                {...register("phone")}
                 className="mt-1"
                 dir="ltr"
+                placeholder="+218920000001"
               />
-              {errors.email && <FormError message={errors.email.message} />}
+              {errors.phone && <FormError message={errors.phone.message} />}
             </div>
 
             <div>

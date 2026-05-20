@@ -35,7 +35,6 @@ export function CustomerInfoStep({
     defaultValues: defaultValues ?? {
       customer_name: "",
       customer_phone: "",
-      customer_email: "",
     },
   });
 
@@ -80,26 +79,6 @@ export function CustomerInfoStep({
               <FormError
                 id="customer_phone-error"
                 message={errors.customer_phone.message}
-              />
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="customer_email">{t("customerEmail")}</Label>
-            <Input
-              id="customer_email"
-              type="email"
-              {...register("customer_email")}
-              aria-describedby={
-                errors.customer_email ? "customer_email-error" : undefined
-              }
-              className="mt-1"
-              dir="ltr"
-            />
-            {errors.customer_email && (
-              <FormError
-                id="customer_email-error"
-                message={errors.customer_email.message}
               />
             )}
           </div>

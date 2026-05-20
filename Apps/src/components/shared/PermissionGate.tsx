@@ -80,25 +80,25 @@ function AnyPermissionGate({
  *
  * @example
  * // Single permission
- * <PermissionGate permission="product:create">
+ * <PermissionGate permission="products.create">
  *   <AddProductButton />
  * </PermissionGate>
  *
  * @example
  * // Multiple permissions - user needs ALL
- * <PermissionGate permission={["product:create", "product:edit"]} mode="all">
+ * <PermissionGate permission={["products.create", "products.update"]} mode="all">
  *   <BulkEditPanel />
  * </PermissionGate>
  *
  * @example
  * // Multiple permissions - user needs ANY
- * <PermissionGate permission={["order:view", "order:manage"]} mode="any">
+ * <PermissionGate permission={["orders.view", "orders.manage_status"]} mode="any">
  *   <OrdersLink />
  * </PermissionGate>
  *
  * @example
  * // With fallback
- * <PermissionGate permission="settings:edit" fallback={<ReadOnlySettings />}>
+ * <PermissionGate permission="settings.manage" fallback={<ReadOnlySettings />}>
  *   <EditableSettings />
  * </PermissionGate>
  */

@@ -24,6 +24,8 @@ import {
   roleIdParamSchema,
   memberListQuerySchema,
 } from "../validators/storeAdmin.validators";
+import { sendSuccess } from "../utils/apiResponse";
+import type { AppRequest } from "../types";
 import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as storeSettingsController from "../controllers/store-admin/storeSettings.Controller";
 import * as storeMemberController from "../controllers/store-admin/storeMember.Controller";
@@ -33,6 +35,21 @@ const router = Router({ mergeParams: true });
 
 // Apply verifyToken and resolveStoreContext to ALL store-admin routes
 router.use(verifyToken, resolveStoreContext, verifyStoreSubscriptionAccess);
+
+// GET /memberships — retrieve current user's membership context for this store
+router.get("/memberships", (req, res) => {
+  const appReq = req as AppRequest;
+
+  sendSuccess(
+    res,
+    {
+      storeId: appReq.storeId,
+      role: appReq.storeRole,
+      permissions: appReq.permissions ?? [],
+    },
+    "Membership retrieved",
+  );
+});
 
 // ========== Settings Routes ==========
 

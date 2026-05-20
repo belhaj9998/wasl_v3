@@ -5,7 +5,7 @@
 
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/constants";
-import type { ApiResponse, PaginatedResponse, PaginationParams } from "@/types";
+import type { ApiResponse, PaginationParams } from "@/types";
 
 export interface Role {
   id: number;
@@ -13,7 +13,7 @@ export interface Role {
   name: string;
   description: string | null;
   is_system: boolean;
-  permissions: string[];
+  permissions: number[];
   created_at: string;
   updated_at: string;
 }
@@ -21,13 +21,49 @@ export interface Role {
 export interface CreateRolePayload {
   name: string;
   description?: string;
-  permissions?: string[];
 }
 
 export interface UpdateRolePayload extends Partial<CreateRolePayload> {}
 
 export interface UpdatePermissionsPayload {
-  permissions: string[];
+  permission_ids: number[];
+}
+
+interface BackendRole {
+  id: number;
+  store_id: number;
+  name: string;
+  description: string | null;
+  is_protected: boolean;
+  permissions?: Array<{
+    permission: {
+      id: number;
+      code: string;
+    };
+  }>;
+  created_at: string;
+  updated_at: string;
+}
+
+interface RolesResponse {
+  roles: BackendRole[];
+}
+
+interface RoleResponse {
+  role: BackendRole;
+}
+
+function normalizeRole(role: BackendRole): Role {
+  return {
+    id: role.id,
+    store_id: role.store_id,
+    name: role.name,
+    description: role.description,
+    is_system: role.is_protected,
+    permissions: role.permissions?.map((item) => item.permission.id) ?? [],
+    created_at: role.created_at,
+    updated_at: role.updated_at,
+  };
 }
 
 export const roleService = {
@@ -35,35 +71,52 @@ export const roleService = {
     const query = params
       ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
       : "";
-    return apiClient<PaginatedResponse<Role>>(
+    return apiClient<ApiResponse<RolesResponse>>(
       `${API_ENDPOINTS.STORE.ROLES(storeId)}${query}`,
       { storeId },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.roles.map(normalizeRole) }) as ApiResponse<
+          Role[]
+        >,
     );
   },
 
   getById(storeId: number, roleId: number) {
-    return apiClient<ApiResponse<Role>>(
+    return apiClient<ApiResponse<RoleResponse>>(
       `${API_ENDPOINTS.STORE.ROLES(storeId)}/${roleId}`,
       { storeId },
+    ).then(
+      (res) =>
+        ({ ...res, data: normalizeRole(res.data.role) }) as ApiResponse<Role>,
     );
   },
 
   create(storeId: number, payload: CreateRolePayload) {
-    return apiClient<ApiResponse<Role>>(API_ENDPOINTS.STORE.ROLES(storeId), {
-      method: "POST",
-      body: payload,
-      storeId,
-    });
-  },
-
-  update(storeId: number, roleId: number, payload: UpdateRolePayload) {
-    return apiClient<ApiResponse<Role>>(
-      `${API_ENDPOINTS.STORE.ROLES(storeId)}/${roleId}`,
+    return apiClient<ApiResponse<RoleResponse>>(
+      API_ENDPOINTS.STORE.ROLES(storeId),
       {
-        method: "PUT",
+        method: "POST",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: normalizeRole(res.data.role) }) as ApiResponse<Role>,
+    );
+  },
+
+  update(storeId: number, roleId: number, payload: UpdateRolePayload) {
+    return apiClient<ApiResponse<RoleResponse>>(
+      `${API_ENDPOINTS.STORE.ROLES(storeId)}/${roleId}`,
+      {
+        method: "PATCH",
+        body: payload,
+        storeId,
+      },
+    ).then(
+      (res) =>
+        ({ ...res, data: normalizeRole(res.data.role) }) as ApiResponse<Role>,
     );
   },
 
@@ -82,13 +135,16 @@ export const roleService = {
     roleId: number,
     payload: UpdatePermissionsPayload,
   ) {
-    return apiClient<ApiResponse<Role>>(
+    return apiClient<ApiResponse<RoleResponse>>(
       `${API_ENDPOINTS.STORE.ROLES(storeId)}/${roleId}/permissions`,
       {
         method: "PUT",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: normalizeRole(res.data.role) }) as ApiResponse<Role>,
     );
   },
 };

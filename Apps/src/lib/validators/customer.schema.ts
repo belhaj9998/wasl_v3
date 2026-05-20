@@ -35,7 +35,6 @@ export const customerSchema = z
     status: z.enum(["ACTIVE", "BLOCKED", "ARCHIVED"]).optional(),
     gender: z.string().nullish(),
     birth_date: z.string().nullish(),
-    accepts_marketing: z.boolean().optional(),
   })
   .refine(
     (data) => {

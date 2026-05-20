@@ -374,7 +374,7 @@ function CategoryTreeNode({
         onDrop={onDrop}
       >
         {/* Drag handle */}
-        <PermissionGate permission="category:update">
+        <PermissionGate permission="categories.manage">
           <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground shrink-0" />
         </PermissionGate>
 
@@ -418,7 +418,7 @@ function CategoryTreeNode({
 
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
-          <PermissionGate permission="category:update">
+          <PermissionGate permission="categories.manage">
             <Button
               variant="ghost"
               size="icon"
@@ -430,7 +430,7 @@ function CategoryTreeNode({
             </Button>
           </PermissionGate>
 
-          <PermissionGate permission="category:delete">
+          <PermissionGate permission="categories.manage">
             <Button
               variant="ghost"
               size="icon"
@@ -766,7 +766,7 @@ export default function CategoriesPage() {
           <p className="text-muted-foreground">إدارة فئات المنتجات بشكل هرمي</p>
         </div>
 
-        <PermissionGate permission="category:create">
+        <PermissionGate permission="categories.manage">
           <Button onClick={() => setFormDialog({ open: true, category: null })}>
             <Plus className="me-2 h-4 w-4" />
             إضافة فئة

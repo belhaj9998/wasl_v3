@@ -58,6 +58,31 @@ export interface UpdateVariantPayload {
   is_active?: boolean;
 }
 
+interface ProductResponse {
+  product: Product;
+}
+
+interface ProductOptionsResponse {
+  options: ProductOption[];
+}
+
+interface ProductOptionResponse {
+  option: ProductOption;
+}
+
+interface ProductVariantsResponse {
+  variants: ProductVariant[];
+}
+
+interface ProductVariantResponse {
+  variant: ProductVariant;
+}
+
+interface GenerateVariantsResponse {
+  created: number;
+  skipped: number;
+  total: number;
+}
 export const productService = {
   getAll(storeId: number, params?: PaginationParams) {
     const query = params
@@ -70,31 +95,37 @@ export const productService = {
   },
 
   getById(storeId: number, productId: number) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}`,
       { storeId },
+    ).then(
+      (res) => ({ ...res, data: res.data.product }) as ApiResponse<Product>,
     );
   },
 
   create(storeId: number, payload: CreateProductPayload) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       API_ENDPOINTS.STORE.PRODUCTS(storeId),
       {
         method: "POST",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.product }) as ApiResponse<Product>,
     );
   },
 
   update(storeId: number, productId: number, payload: UpdateProductPayload) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.product }) as ApiResponse<Product>,
     );
   },
 
@@ -109,13 +140,15 @@ export const productService = {
   },
 
   changeStatus(storeId: number, productId: number, status: ProductStatus) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/status`,
       {
         method: "PATCH",
         body: { status },
         storeId,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.product }) as ApiResponse<Product>,
     );
   },
 
@@ -130,21 +163,26 @@ export const productService = {
   },
 
   duplicate(storeId: number, productId: number) {
-    return apiClient<ApiResponse<Product>>(
+    return apiClient<ApiResponse<ProductResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/duplicate`,
       {
         method: "POST",
         storeId,
       },
+    ).then(
+      (res) => ({ ...res, data: res.data.product }) as ApiResponse<Product>,
     );
   },
 
   // ========== Options ==========
 
   getOptions(storeId: number, productId: number) {
-    return apiClient<ApiResponse<ProductOption[]>>(
+    return apiClient<ApiResponse<ProductOptionsResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options`,
       { storeId },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.options }) as ApiResponse<ProductOption[]>,
     );
   },
 
@@ -153,13 +191,16 @@ export const productService = {
     productId: number,
     payload: CreateOptionPayload,
   ) {
-    return apiClient<ApiResponse<ProductOption>>(
+    return apiClient<ApiResponse<ProductOptionResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options`,
       {
         method: "POST",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.option }) as ApiResponse<ProductOption>,
     );
   },
 
@@ -169,13 +210,16 @@ export const productService = {
     optionId: number,
     payload: UpdateOptionPayload,
   ) {
-    return apiClient<ApiResponse<ProductOption>>(
+    return apiClient<ApiResponse<ProductOptionResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options/${optionId}`,
       {
         method: "PATCH",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.option }) as ApiResponse<ProductOption>,
     );
   },
 
@@ -197,13 +241,16 @@ export const productService = {
     optionId: number,
     payload: CreateOptionValuePayload,
   ) {
-    return apiClient<ApiResponse<ProductOption>>(
+    return apiClient<ApiResponse<ProductOptionResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options/${optionId}/values`,
       {
         method: "POST",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.option }) as ApiResponse<ProductOption>,
     );
   },
 
@@ -214,13 +261,16 @@ export const productService = {
     valueId: number,
     payload: UpdateOptionValuePayload,
   ) {
-    return apiClient<ApiResponse<ProductOption>>(
+    return apiClient<ApiResponse<ProductOptionResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options/${optionId}/values/${valueId}`,
       {
         method: "PATCH",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.option }) as ApiResponse<ProductOption>,
     );
   },
 
@@ -230,26 +280,32 @@ export const productService = {
     optionId: number,
     valueId: number,
   ) {
-    return apiClient<ApiResponse<null>>(
+    return apiClient<ApiResponse<ProductOptionResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/options/${optionId}/values/${valueId}`,
       {
         method: "DELETE",
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.option }) as ApiResponse<ProductOption>,
     );
   },
 
   // ========== Variants ==========
 
   getVariants(storeId: number, productId: number) {
-    return apiClient<ApiResponse<ProductVariant[]>>(
+    return apiClient<ApiResponse<ProductVariantsResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/variants`,
       { storeId },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.variants }) as ApiResponse<ProductVariant[]>,
     );
   },
 
   generateVariants(storeId: number, productId: number) {
-    return apiClient<ApiResponse<ProductVariant[]>>(
+    return apiClient<ApiResponse<GenerateVariantsResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}/variants/generate`,
       {
         method: "POST",
@@ -259,9 +315,12 @@ export const productService = {
   },
 
   getVariant(storeId: number, variantId: number) {
-    return apiClient<ApiResponse<ProductVariant>>(
+    return apiClient<ApiResponse<ProductVariantResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId).replace("/products", "")}/variants/${variantId}`,
       { storeId },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.variant }) as ApiResponse<ProductVariant>,
     );
   },
 
@@ -270,13 +329,16 @@ export const productService = {
     variantId: number,
     payload: UpdateVariantPayload,
   ) {
-    return apiClient<ApiResponse<ProductVariant>>(
+    return apiClient<ApiResponse<ProductVariantResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId).replace("/products", "")}/variants/${variantId}`,
       {
         method: "PATCH",
         body: payload,
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.variant }) as ApiResponse<ProductVariant>,
     );
   },
 
@@ -291,12 +353,15 @@ export const productService = {
   },
 
   setDefaultVariant(storeId: number, variantId: number) {
-    return apiClient<ApiResponse<ProductVariant>>(
+    return apiClient<ApiResponse<ProductVariantResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId).replace("/products", "")}/variants/${variantId}/set-default`,
       {
         method: "PATCH",
         storeId,
       },
+    ).then(
+      (res) =>
+        ({ ...res, data: res.data.variant }) as ApiResponse<ProductVariant>,
     );
   },
 };

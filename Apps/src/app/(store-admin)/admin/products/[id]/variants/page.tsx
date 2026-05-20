@@ -230,18 +230,15 @@ export default function ProductVariantsPage() {
 
       setActionLoading(true);
       try {
-        await productService.deleteOptionValue(
+        const res = await productService.deleteOptionValue(
           currentStoreId,
           productId,
           optionId,
           valueId,
         );
+
         setOptions((prev) =>
-          prev.map((o) =>
-            o.id === optionId
-              ? { ...o, values: o.values.filter((v) => v.id !== valueId) }
-              : o,
-          ),
+          prev.map((o) => (o.id === optionId ? res.data : o)),
         );
         toast.success("تم حذف القيمة بنجاح");
       } catch (err: unknown) {
@@ -274,14 +271,16 @@ export default function ProductVariantsPage() {
         currentStoreId,
         productId,
       );
-      setVariants(res.data);
-      toast.success("تم إنشاء المتغيرات بنجاح");
-    } catch (err: unknown) {
-      const message =
-        err && typeof err === "object" && "message" in err
-          ? (err as { message: string }).message
-          : "فشل إنشاء المتغيرات";
-      toast.error(message);
+
+      const variantsRes = await productService.getVariants(
+        currentStoreId,
+        productId,
+      );
+      setVariants(variantsRes.data);
+
+      toast.success(
+        `تم إنشاء ${res.data.created} متغير، وتخطي ${res.data.skipped}`,
+      );
     } finally {
       setActionLoading(false);
     }

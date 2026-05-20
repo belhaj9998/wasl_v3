@@ -53,7 +53,7 @@ export default function StorefrontHomeClient() {
 
         if (!cancelled) {
           setProducts(productsRes.data);
-          setCategories(categoriesRes.data);
+          setCategories(categoriesRes.data.categories ?? []);
         }
       } catch {
         if (!cancelled) {

@@ -9,9 +9,10 @@ import { sendError } from "../utils/apiResponse";
  */
 export const globalRateLimiter = rateLimit({
   windowMs: config.rateLimitWindowMs,
-  max: config.rateLimitMax,
+  max: config.nodeEnv === "development" ? 1000 : config.rateLimitMax,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",
   handler: (_req, res) => {
     sendError(
       res,

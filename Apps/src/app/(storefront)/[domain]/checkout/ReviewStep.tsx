@@ -67,14 +67,6 @@ export function ReviewStep({
             <span className="text-muted-foreground">{t("customerPhone")}</span>
             <span dir="ltr">{customerData.customer_phone}</span>
           </div>
-          {customerData.customer_email && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">
-                {t("customerEmail")}
-              </span>
-              <span dir="ltr">{customerData.customer_email}</span>
-            </div>
-          )}
         </CardContent>
       </Card>
 

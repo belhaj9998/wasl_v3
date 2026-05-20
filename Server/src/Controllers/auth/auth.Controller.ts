@@ -148,3 +148,21 @@ export const changePassword = asyncHandler(
     sendSuccess(res, null, "Password changed successfully");
   },
 );
+
+export const getMyStores = asyncHandler(
+  async (req: AppRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const stores = await authService.getMyStores(userId);
+
+    sendSuccess(res, stores, "Stores retrieved");
+  },
+);
+
+export const getMySubscription = asyncHandler(
+  async (req: AppRequest, res: Response) => {
+    const userId = req.user!.userId;
+    const subscription = await authService.getMySubscription(userId);
+
+    sendSuccess(res, subscription, "Subscription retrieved");
+  },
+);

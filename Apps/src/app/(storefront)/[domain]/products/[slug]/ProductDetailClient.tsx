@@ -60,12 +60,13 @@ export default function ProductDetailClient() {
         const response = await storefrontService.getProductBySlug(domain, slug);
 
         if (!cancelled) {
-          setProduct(response.data);
-          // Select default variant
-          if (response.data.variants && response.data.variants.length > 0) {
+          const productData = response.data.product;
+
+          setProduct(productData);
+          if (productData.variants && productData.variants.length > 0) {
             const defaultVariant =
-              response.data.variants.find((v) => v.is_default) ||
-              response.data.variants[0];
+              productData.variants.find((v) => v.is_default) ||
+              productData.variants[0];
             setSelectedVariant(defaultVariant);
           }
         }

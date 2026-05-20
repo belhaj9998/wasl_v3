@@ -241,14 +241,10 @@ export function CreateStoreDialog({
 
   const nameError = getFieldError(errors.name);
   const domainError = getFieldError(errors.domain);
-  const dialogTitleId = "create-store-dialog-title";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={dialogTitleId}
         onEscapeKeyDown={(e) => {
           if (isSubmitting) e.preventDefault();
         }}
@@ -257,7 +253,7 @@ export function CreateStoreDialog({
         }}
       >
         <DialogHeader>
-          <DialogTitle id={dialogTitleId}>{t("dialog.title")}</DialogTitle>
+          <DialogTitle>{t("dialog.title")}</DialogTitle>{" "}
           <DialogDescription>{t("dialog.description")}</DialogDescription>
         </DialogHeader>
 

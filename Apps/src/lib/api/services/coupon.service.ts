@@ -35,19 +35,34 @@ export interface CouponUsage {
   used_at: string;
 }
 
+
+
 export interface ValidateCouponPayload {
   code: string;
-  order_total: number;
+  subtotal: number;
+  customer_id?: number | null;
 }
+
+interface CouponResponse {
+  coupon: Coupon;
+}
+
+type CouponListParams = PaginationParams & {
+  search?: string;
+  is_active?: boolean;
+  type?: "PERCENTAGE" | "FIXED";
+  sort_by?: "created_at" | "code" | "starts_at" | "ends_at";
+  sort_order?: "asc" | "desc";
+};
 
 export interface ValidateCouponResult {
   valid: boolean;
-  discount_amount: string;
+  discount_amount: number;
   coupon: Coupon;
 }
 
 export const couponService = {
-  getAll(storeId: number, params?: PaginationParams) {
+  getAll(storeId: number, params?: CouponListParams) {
     const query = params
       ? `?${new URLSearchParams(params as Record<string, string>).toString()}`
       : "";
@@ -58,32 +73,31 @@ export const couponService = {
   },
 
   getById(storeId: number, couponId: number) {
-    return apiClient<ApiResponse<Coupon>>(
+    return apiClient<ApiResponse<CouponResponse>>(
       `${API_ENDPOINTS.STORE.COUPONS(storeId)}/${couponId}`,
       { storeId },
-    );
+    ).then((res) => ({ ...res, data: res.data.coupon }) as ApiResponse<Coupon>);
   },
 
   create(storeId: number, payload: CreateCouponPayload) {
-    return apiClient<ApiResponse<Coupon>>(
+    return apiClient<ApiResponse<CouponResponse>>(
       API_ENDPOINTS.STORE.COUPONS(storeId),
       {
         method: "POST",
         body: payload,
         storeId,
       },
-    );
+    ).then((res) => ({ ...res, data: res.data.coupon }) as ApiResponse<Coupon>);
   },
-
   update(storeId: number, couponId: number, payload: UpdateCouponPayload) {
-    return apiClient<ApiResponse<Coupon>>(
+    return apiClient<ApiResponse<CouponResponse>>(
       `${API_ENDPOINTS.STORE.COUPONS(storeId)}/${couponId}`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },
-    );
+    ).then((res) => ({ ...res, data: res.data.coupon }) as ApiResponse<Coupon>);
   },
 
   delete(storeId: number, couponId: number) {

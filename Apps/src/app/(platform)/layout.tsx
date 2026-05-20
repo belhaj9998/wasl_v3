@@ -109,9 +109,10 @@ export default function PlatformLayout({
     persistLocale(newLocale);
   }, [dispatch, locale]);
 
-  const handleLogout = useCallback(() => {
-    dispatch(logoutThunk());
-  }, [dispatch]);
+  const handleLogout = useCallback(async () => {
+    await dispatch(logoutThunk());
+    router.replace(ROUTES.AUTH.LOGIN);
+  }, [dispatch, router]);
 
   // Show loading state while auth is being determined
   if (authLoading || !user) {

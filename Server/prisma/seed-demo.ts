@@ -297,7 +297,6 @@ const demoCustomers = [
     phone: "+218920000001",
     password: "Customer1!",
     status: "ACTIVE" as const,
-    accepts_marketing: true,
   },
   {
     storeDomain: "elegance-store",
@@ -307,7 +306,6 @@ const demoCustomers = [
     phone: "+218920000002",
     password: "Customer2!",
     status: "ACTIVE" as const,
-    accepts_marketing: false,
   },
   {
     storeDomain: "tech-store",
@@ -317,7 +315,6 @@ const demoCustomers = [
     phone: "+218920000003",
     password: "Customer3!",
     status: "ACTIVE" as const,
-    accepts_marketing: true,
   },
 ];
 
@@ -694,7 +691,6 @@ async function seedCustomers(stores: any[]) {
         phone: custData.phone,
         password_hash: hashedPassword,
         status: custData.status,
-        accepts_marketing: custData.accepts_marketing,
       },
     });
 

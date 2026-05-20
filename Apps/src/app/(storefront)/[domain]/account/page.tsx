@@ -77,7 +77,6 @@ export default function StorefrontAccountPage() {
       const response = await storefrontService.updateCustomerProfile(domain, {
         first_name: data.first_name,
         last_name: data.last_name || undefined,
-        email: data.email || undefined,
         phone: data.phone || undefined,
       });
       setCustomer(response.data);

@@ -23,7 +23,7 @@ export interface ForbiddenProps {
  * the required permission to access the resource.
  *
  * @example
- * <Forbidden permission="product:create" />
+ * <Forbidden permission="products.create" />
  */
 export function Forbidden({ permission }: ForbiddenProps) {
   const t = useTranslations("errors.forbidden");

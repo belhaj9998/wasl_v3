@@ -54,6 +54,8 @@ router.post("/logout", verifyToken, authController.logout);
 
 // GET /me — get current user profile
 router.get("/me", verifyToken, authController.getProfile);
+router.get("/me/stores", verifyToken, authController.getMyStores);
+router.get("/me/subscription", verifyToken, authController.getMySubscription);
 
 // PATCH /me — update current user profile
 router.patch(

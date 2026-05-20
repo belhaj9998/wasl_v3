@@ -9,7 +9,6 @@ interface CustomerListParams {
   limit?: number;
   search?: string;
   status?: "ACTIVE" | "BLOCKED" | "ARCHIVED";
-  accepts_marketing?: boolean;
   sort_by?: "created_at" | "first_name" | "last_name";
   sort_order?: "asc" | "desc";
 }
@@ -26,7 +25,6 @@ interface CreateCustomerInput {
   birth_date?: Date;
   notes?: string;
   status?: "ACTIVE" | "BLOCKED" | "ARCHIVED";
-  accepts_marketing?: boolean;
 }
 
 /**
@@ -41,7 +39,6 @@ interface UpdateCustomerInput {
   birth_date?: Date | null;
   notes?: string | null;
   status?: "ACTIVE" | "BLOCKED" | "ARCHIVED";
-  accepts_marketing?: boolean;
 }
 
 /**
@@ -84,6 +81,20 @@ interface PaginationParams {
   limit?: number;
 }
 
+const customerSelect = {
+  id: true,
+  store_id: true,
+  first_name: true,
+  last_name: true,
+  phone: true,
+  gender: true,
+  birth_date: true,
+  notes: true,
+  status: true,
+  created_at: true,
+  updated_at: true,
+} as const;
+
 /**
  * CustomerService handles customer management within a store:
  * listing with filters/search, creating, updating, soft-deleting,
@@ -99,7 +110,6 @@ export class CustomerService {
       limit = 20,
       search,
       status,
-      accepts_marketing,
       sort_by = "created_at",
       sort_order = "desc",
     } = params;
@@ -108,10 +118,6 @@ export class CustomerService {
 
     if (status) {
       where.status = status;
-    }
-
-    if (accepts_marketing !== undefined) {
-      where.accepts_marketing = accepts_marketing;
     }
 
     if (search) {
@@ -139,6 +145,7 @@ export class CustomerService {
         skip: (page - 1) * limit,
         take: limit,
         orderBy,
+        select: customerSelect,
       }),
       prisma.customer.count({ where }),
     ]);
@@ -160,6 +167,7 @@ export class CustomerService {
   async getById(storeId: number, customerId: number) {
     const customer = await prisma.customer.findFirst({
       where: { id: customerId, store_id: storeId },
+      select: customerSelect,
     });
 
     if (!customer) {
@@ -223,8 +231,8 @@ export class CustomerService {
         birth_date: data.birth_date ?? null,
         notes: data.notes ?? null,
         status: data.status ?? "ACTIVE",
-        accepts_marketing: data.accepts_marketing ?? false,
       },
+      select: customerSelect,
     });
 
     return customer;
@@ -288,12 +296,11 @@ export class CustomerService {
     if (data.birth_date !== undefined) updateData.birth_date = data.birth_date;
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.status !== undefined) updateData.status = data.status;
-    if (data.accepts_marketing !== undefined)
-      updateData.accepts_marketing = data.accepts_marketing;
 
     const updated = await prisma.customer.update({
       where: { id_store_id: { id: customerId, store_id: storeId } },
       data: updateData,
+      select: customerSelect,
     });
 
     return updated;

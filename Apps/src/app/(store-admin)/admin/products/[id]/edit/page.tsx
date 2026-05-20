@@ -141,7 +141,7 @@ export default function ProductEditPage() {
         </div>
 
         {/* Duplicate Button */}
-        <PermissionGate permission="product:create">
+        <PermissionGate permission="products.create">
           <Button
             variant="outline"
             onClick={handleDuplicate}

@@ -2,14 +2,19 @@
  * Auth Service
  * Handles authentication, registration, password management, and store creation.
  */
-
-import { apiClient, setAccessToken } from "@/lib/api/client";
+import {
+  apiClient,
+  setAccessToken,
+  setCustomerToken,
+  setSuppressSessionExpiredRedirect,
+} from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/constants";
 import type {
   ApiResponse,
   AuthResponse,
   LoginPayload,
   RegisterPayload,
+  Store,
   User,
 } from "@/types";
 
@@ -31,12 +36,25 @@ export interface CreateStorePayload {
   name: string;
   domain: string;
 }
+interface ProfileResponse {
+  user: User;
+}
 
+interface CreateStoreApiResponse {
+  store: Store;
+  roles: unknown[];
+  membership: unknown;
+  subscription: unknown;
+}
 export const authService = {
   login(payload: LoginPayload) {
     return apiClient<ApiResponse<AuthResponse>>(API_ENDPOINTS.AUTH.LOGIN, {
       method: "POST",
       body: payload,
+      skipAuthRedirect: true,
+    }).then((res) => {
+      setSuppressSessionExpiredRedirect(false);
+      return res;
     });
   },
 
@@ -44,20 +62,31 @@ export const authService = {
     return apiClient<ApiResponse<AuthResponse>>(API_ENDPOINTS.AUTH.REGISTER, {
       method: "POST",
       body: payload,
-    });
-  },
-
-  logout() {
-    return apiClient<ApiResponse<null>>(API_ENDPOINTS.AUTH.LOGOUT, {
-      method: "POST",
+      skipAuthRedirect: true,
     }).then((res) => {
-      setAccessToken(null);
+      setSuppressSessionExpiredRedirect(false);
       return res;
     });
   },
 
+  async logout() {
+    setSuppressSessionExpiredRedirect(true);
+
+    try {
+      return await apiClient<ApiResponse<null>>(API_ENDPOINTS.AUTH.LOGOUT, {
+        method: "POST",
+        skipAuthRedirect: true,
+      });
+    } finally {
+      setAccessToken(null);
+      setCustomerToken(null);
+    }
+  },
+
   getProfile() {
-    return apiClient<ApiResponse<User>>(API_ENDPOINTS.AUTH.ME);
+    return apiClient<ApiResponse<ProfileResponse>>(API_ENDPOINTS.AUTH.ME).then(
+      (res) => ({ ...res, data: res.data.user }) as ApiResponse<User>,
+    );
   },
 
   refresh() {
@@ -67,8 +96,8 @@ export const authService = {
   },
 
   changePassword(payload: ChangePasswordPayload) {
-    return apiClient<ApiResponse<null>>(`${API_ENDPOINTS.AUTH.ME}/password`, {
-      method: "PUT",
+    return apiClient<ApiResponse<null>>(API_ENDPOINTS.AUTH.CHANGE_PASSWORD, {
+      method: "POST",
       body: payload,
     });
   },
@@ -83,17 +112,20 @@ export const authService = {
   resetPassword(payload: ResetPasswordPayload) {
     return apiClient<ApiResponse<null>>(API_ENDPOINTS.AUTH.RESET_PASSWORD, {
       method: "POST",
-      body: payload,
+      body: {
+        token: payload.token,
+        new_password: payload.password,
+      },
     });
   },
 
   createStore(payload: CreateStorePayload) {
-    return apiClient<ApiResponse<{ id: number; name: string; domain: string }>>(
-      "/stores",
+    return apiClient<ApiResponse<CreateStoreApiResponse>>(
+      API_ENDPOINTS.AUTH.CREATE_STORE,
       {
         method: "POST",
         body: payload,
       },
-    );
+    ).then((res) => ({ ...res, data: res.data.store }) as ApiResponse<Store>);
   },
 };

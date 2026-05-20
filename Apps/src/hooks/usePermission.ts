@@ -9,7 +9,7 @@ import { useAppSelector } from "@/lib/store/hooks";
 
 /**
  * Check if the current user has a specific permission.
- * @param permission - The permission string to check (e.g., "product:create")
+ * @param permission - The permission string to check (e.g., "products.create")
  * @returns true if the user has the permission
  */
 export function usePermission(permission: string): boolean {

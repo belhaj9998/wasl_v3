@@ -5,14 +5,17 @@
 
 import { apiClient } from "@/lib/api/client";
 import type { ApiResponse, Store } from "@/types";
+import { API_ENDPOINTS } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
 // Request / Response interfaces
 // ---------------------------------------------------------------------------
 
+
 export interface CreateStoreRequest {
   name: string;
   domain: string;
+  
 }
 
 export interface CreateStoreResponse {
@@ -23,6 +26,12 @@ export interface CreateStoreResponse {
   owner_id: number;
   created_at: string;
   updated_at: string;
+}
+interface CreateStoreApiResponse {
+  store: Store;
+  roles: unknown[];
+  membership: unknown;
+  subscription: unknown;
 }
 
 export interface UserSubscriptionInfo {
@@ -38,13 +47,15 @@ export interface UserSubscriptionInfo {
 export const storeService = {
   /**
    * Create a new store.
-   * POST /stores
    */
   create(data: CreateStoreRequest) {
-    return apiClient<ApiResponse<Store>>("/stores", {
-      method: "POST",
-      body: data,
-    });
+    return apiClient<ApiResponse<CreateStoreApiResponse>>(
+      API_ENDPOINTS.AUTH.CREATE_STORE,
+      {
+        method: "POST",
+        body: data,
+      },
+    ).then((res) => ({ ...res, data: res.data.store }) as ApiResponse<Store>);
   },
 
   /**

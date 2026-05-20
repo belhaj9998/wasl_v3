@@ -23,10 +23,6 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
     | "BLOCKED"
     | "ARCHIVED"
     | undefined;
-  const accepts_marketing =
-    req.query.accepts_marketing !== undefined
-      ? req.query.accepts_marketing === "true"
-      : undefined;
   const sort_by = req.query.sort_by as
     | "created_at"
     | "first_name"
@@ -39,7 +35,6 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
     limit,
     search,
     status,
-    accepts_marketing,
     sort_by,
     sort_order,
   });

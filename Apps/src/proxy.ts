@@ -1,18 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-/**
- * Next.js Middleware — Route Protection
- *
- * Checks the `refresh_token` httpOnly cookie to determine auth state.
- * - Unauthenticated users are redirected away from protected routes to /login
- * - Authenticated users are redirected away from auth pages to /dashboard
- * - Storefront routes are always accessible without authentication
- *
- * Validates: Requirements 2.1, 2.2, 2.3, 2.4, 2.5
- */
 
-// Auth pages that authenticated users should be redirected away from
 const AUTH_PAGES = [
   "/login",
   "/register",

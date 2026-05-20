@@ -16,6 +16,8 @@ export const API_ENDPOINTS = {
     ME: "/auth/me",
     FORGOT_PASSWORD: "/auth/forgot-password",
     RESET_PASSWORD: "/auth/reset-password",
+    CHANGE_PASSWORD: "/auth/change-password",
+    CREATE_STORE: "/auth/stores",
   },
 
   // Platform Admin
@@ -65,11 +67,19 @@ export const API_ENDPOINTS = {
       LOGIN: (domain: string) => `/storefront/${domain}/customers/login`,
       REGISTER: (domain: string) => `/storefront/${domain}/customers/register`,
       ME: (domain: string) => `/storefront/${domain}/customers/me`,
-      ORDERS: (domain: string) => `/storefront/${domain}/customers/orders`,
+      ORDERS: (domain: string) => `/storefront/${domain}/customers/me/orders`,
       ADDRESSES: (domain: string) =>
-        `/storefront/${domain}/customers/addresses`,
+        `/storefront/${domain}/customers/me/addresses`,
     },
     ORDER_LOOKUP: (domain: string) => `/storefront/${domain}/orders/lookup`,
-    COUPON_APPLY: (domain: string) => `/storefront/${domain}/cart/coupon`,
+    COUPON_APPLY: (domain: string) => `/storefront/${domain}/cart/apply-coupon`,
+    COUPON_REMOVE: (domain: string) => `/storefront/${domain}/cart/coupon`,
+  },
+
+  UPLOAD: {
+    IMAGE: "/upload/image",
+    FILE: "/upload/file",
+    DELETE: (key: string) =>
+      `/upload/${key.split("/").map(encodeURIComponent).join("/")}`,
   },
 } as const;
