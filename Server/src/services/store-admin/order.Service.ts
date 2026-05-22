@@ -7,8 +7,13 @@ import {
 } from "../../utils/orderNumberGenerator";
 import { couponService } from "./coupon.Service";
 import {
+  mapOrderToDto,
+  mapOrderTimelineToDto,
+} from "../../mappers";
+import {
   ShipmentStatus,
   PaymentStatus,
+  PaymentMethod,
   OrderSource,
 } from "../../../generated/prisma";
 
@@ -49,6 +54,7 @@ interface OrderAddressInput {
   phone?: string;
   city: string;
   region?: string;
+  state?: string;
   street_line_1: string;
   street_line_2?: string;
   postal_code?: string;
@@ -60,7 +66,11 @@ interface OrderAddressInput {
  */
 interface CreateOrderInput {
   customer_id?: number;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_email?: string;
   source?: OrderSource;
+  payment_method?: PaymentMethod;
   items: CreateOrderItemInput[];
   shipping_address: OrderAddressInput;
   billing_address?: OrderAddressInput;
@@ -210,6 +220,10 @@ export class OrderService {
               phone: true,
             },
           },
+          payments: {
+            orderBy: { created_at: "desc" },
+            take: 1,
+          },
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -219,7 +233,7 @@ export class OrderService {
     ]);
 
     return {
-      data,
+      data: data.map(mapOrderToDto),
       meta: {
         total,
         page,
@@ -257,7 +271,7 @@ export class OrderService {
       throw AppError.notFound("Order not found");
     }
 
-    return order;
+    return mapOrderToDto(order);
   }
 
   /**
@@ -265,7 +279,7 @@ export class OrderService {
    * All operations are performed within a transaction.
    */
   async create(storeId: number, data: CreateOrderInput, actorUserId: number) {
-    return await prisma.$transaction(async (tx) => {
+    const createdOrder = await prisma.$transaction(async (tx) => {
       // Step 1: Validate customer if provided
       let customerName: string;
       let customerPhone: string;
@@ -282,8 +296,9 @@ export class OrderService {
           .join(" ");
         customerPhone = customer.phone ?? data.shipping_address.phone ?? "";
       } else {
-        customerName = data.shipping_address.full_name;
-        customerPhone = data.shipping_address.phone ?? "";
+        customerName = data.customer_name ?? data.shipping_address.full_name;
+        customerPhone =
+          data.customer_phone ?? data.shipping_address.phone ?? "";
       }
 
       // Step 2: Validate and resolve items
@@ -310,9 +325,9 @@ export class OrderService {
           );
         }
 
-        if (variant.product.status !== "ACTIVE") {
+        if (variant.product.status !== "PUBLISHED") {
           throw AppError.badRequest(
-            `Product "${variant.product.name}" is not active`,
+            `Product "${variant.product.name}" is not published`,
           );
         }
 
@@ -417,7 +432,7 @@ export class OrderService {
           full_name: data.shipping_address.full_name,
           phone: data.shipping_address.phone ?? null,
           city: data.shipping_address.city,
-          region: data.shipping_address.region ?? null,
+          region: data.shipping_address.region ?? data.shipping_address.state ?? null,
           street_line_1: data.shipping_address.street_line_1,
           street_line_2: data.shipping_address.street_line_2 ?? null,
           postal_code: data.shipping_address.postal_code ?? null,
@@ -434,7 +449,7 @@ export class OrderService {
             full_name: data.billing_address.full_name,
             phone: data.billing_address.phone ?? null,
             city: data.billing_address.city,
-            region: data.billing_address.region ?? null,
+            region: data.billing_address.region ?? data.billing_address.state ?? null,
             street_line_1: data.billing_address.street_line_1,
             street_line_2: data.billing_address.street_line_2 ?? null,
             postal_code: data.billing_address.postal_code ?? null,
@@ -443,7 +458,20 @@ export class OrderService {
         });
       }
 
-      // Step 9: Reserve inventory
+      // Step 9: Create a pending payment intent when a method is selected
+      if (data.payment_method) {
+        await tx.paymentTransaction.create({
+          data: {
+            store_id: storeId,
+            order_id: order.id,
+            method: data.payment_method,
+            amount: grandTotal,
+            currency_code: "LYD",
+          },
+        });
+      }
+
+      // Step 10: Reserve inventory
       for (const item of resolvedItems) {
         await tx.inventory.update({
           where: {
@@ -471,7 +499,7 @@ export class OrderService {
         });
       }
 
-      // Step 10: Record coupon usage
+      // Step 11: Record coupon usage
       if (couponId) {
         await tx.couponUsage.create({
           data: {
@@ -484,7 +512,7 @@ export class OrderService {
         });
       }
 
-      // Step 11: Create timeline entry
+      // Step 12: Create timeline entry
       await tx.orderTimeline.create({
         data: {
           store_id: storeId,
@@ -498,6 +526,8 @@ export class OrderService {
 
       return order;
     });
+
+    return this.getById(storeId, createdOrder.id);
   }
 
   /**
@@ -543,7 +573,7 @@ export class OrderService {
       return updatedOrder;
     });
 
-    return updated;
+    return this.getById(storeId, updated.id);
   }
 
   /**
@@ -587,7 +617,7 @@ export class OrderService {
       return updatedOrder;
     });
 
-    return updated;
+    return this.getById(storeId, updated.id);
   }
 
   /**
@@ -613,7 +643,7 @@ export class OrderService {
     // Validate transition to CANCELED
     orderStateMachine.assertTransition(order.status, ShipmentStatus.CANCELED);
 
-    return await prisma.$transaction(async (tx) => {
+    const canceledOrder = await prisma.$transaction(async (tx) => {
       // Update order status
       const updatedOrder = await tx.order.update({
         where: { id_store_id: { id: orderId, store_id: storeId } },
@@ -665,6 +695,8 @@ export class OrderService {
 
       return updatedOrder;
     });
+
+    return this.getById(storeId, canceledOrder.id);
   }
 
   /**
@@ -693,9 +725,12 @@ export class OrderService {
         event: "NOTE_ADDED",
         note,
       },
+      include: {
+        actor: { select: { id: true, first_name: true, last_name: true } },
+      },
     });
 
-    return timelineEntry;
+    return mapOrderTimelineToDto(timelineEntry);
   }
 
   /**
@@ -734,7 +769,7 @@ export class OrderService {
     ]);
 
     return {
-      data,
+      data: data.map(mapOrderTimelineToDto),
       meta: {
         total,
         page,

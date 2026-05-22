@@ -10,3 +10,4 @@ export * from "./metadata";
 export * from "./percentageChange";
 export * from "./permissions";
 export * from "./sanitize";
+export * from "./slugify";

@@ -21,13 +21,6 @@ import { EmptyState } from "@/components/shared";
 import { showMiniCart } from "@/hooks/useMiniCart";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import type { Product, ProductVariant } from "@/types";
 
 export default function ProductDetailClient() {
@@ -63,10 +56,17 @@ export default function ProductDetailClient() {
           const productData = response.data.product;
 
           setProduct(productData);
-          if (productData.variants && productData.variants.length > 0) {
+          const activeVariants =
+            productData.variants?.filter((v) => v.is_active) ?? [];
+
+          if (productData.has_variants) {
+            setSelectedVariant(null);
+          } else {
             const defaultVariant =
-              productData.variants.find((v) => v.is_default) ||
-              productData.variants[0];
+              activeVariants.find((v) => v.is_default) ||
+              activeVariants[0] ||
+              null;
+
             setSelectedVariant(defaultVariant);
           }
         }
@@ -93,22 +93,39 @@ export default function ProductDetailClient() {
   }, [domain, slug]);
 
   const handleAddToCart = async () => {
+    if (!product) return;
+
+    if (requiresVariantSelection && !selectedVariant) {
+      toast.error(t("selectVariantFirst"));
+      return;
+    }
+
     if (!selectedVariant) return;
+
+    if (!isInStock()) {
+      toast.error(t("variantUnavailable"));
+      return;
+    }
+
+    if (hasStockLimit && quantity > availableQuantity) {
+      toast.error(t("availableQuantityOnly", { count: availableQuantity }));
+      return;
+    }
 
     try {
       await dispatch(
         addToCartThunk({
           domain,
-          productId: product!.id,
+          productId: product.id,
           variantId: selectedVariant.id,
           quantity,
         }),
       ).unwrap();
+
       setAddedToCart(true);
 
-      // Show mini-cart popup with product details
       showMiniCart({
-        productName: product!.name,
+        productName: product.name,
         quantity,
         price: getVariantPrice(),
       });
@@ -118,7 +135,36 @@ export default function ProductDetailClient() {
       toast.error(t("addToCartError"));
     }
   };
+  const getAvailableQuantity = () => {
+    if (!product?.track_inventory) return Number.POSITIVE_INFINITY;
+    return selectedVariant?.inventory?.available_quantity ?? 0;
+  };
 
+  const availableQuantity = getAvailableQuantity();
+  const hasStockLimit = Number.isFinite(availableQuantity);
+  const minimumQuantity = hasStockLimit && availableQuantity <= 0 ? 0 : 1;
+  const canIncreaseQuantity = !hasStockLimit || quantity < availableQuantity;
+  const canDecreaseQuantity = quantity > minimumQuantity;
+  const selectableVariants = product?.has_variants
+    ? (product.variants?.filter((v) => v.is_active && !v.is_default) ?? [])
+    : [];
+
+  const requiresVariantSelection =
+    Boolean(product?.has_variants) && selectableVariants.length > 0;
+
+  const hasMissingVariants =
+    Boolean(product?.has_variants) && selectableVariants.length === 0;
+  useEffect(() => {
+    if (!hasStockLimit) {
+      setQuantity((current) => Math.max(current, 1));
+      return;
+    }
+
+    setQuantity((current) => {
+      if (availableQuantity <= 0) return 0;
+      return Math.min(Math.max(current, 1), availableQuantity);
+    });
+  }, [hasStockLimit, availableQuantity, selectedVariant?.id]);
   const getVariantPrice = () => {
     if (selectedVariant?.price) return selectedVariant.price;
     return product?.base_price || "0";
@@ -131,9 +177,7 @@ export default function ProductDetailClient() {
   };
 
   const isInStock = () => {
-    if (!product?.track_inventory) return true;
-    if (!selectedVariant?.inventory) return true;
-    return selectedVariant.inventory.available_quantity > 0;
+    return !hasStockLimit || availableQuantity > 0;
   };
 
   if (loading) {
@@ -257,35 +301,52 @@ export default function ProductDetailClient() {
             )}
           </div>
 
-          {/* Variant Selection */}
-          {product.variants && product.variants.length > 1 && (
+          {product.has_variants && (
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground">
                 {t("selectVariant")}
               </label>
-              <Select
-                value={selectedVariant ? String(selectedVariant.id) : undefined}
-                onValueChange={(value) => {
-                  const variant = product.variants?.find(
-                    (v) => v.id === Number(value),
+
+              <div className="flex flex-wrap gap-2">
+                {selectableVariants.map((variant) => {
+                  const variantStock = product.track_inventory
+                    ? (variant.inventory?.available_quantity ?? 0)
+                    : Number.POSITIVE_INFINITY;
+
+                  const isUnavailable =
+                    product.track_inventory && variantStock <= 0;
+                  const isSelected = selectedVariant?.id === variant.id;
+
+                  return (
+                    <Button
+                      key={variant.id}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      className="h-auto min-w-20 flex-col gap-1 px-4 py-2"
+                      disabled={isUnavailable}
+                      onClick={() => setSelectedVariant(variant)}
+                    >
+                      <span>{variant.title}</span>
+                      {variant.price && (
+                        <span className="text-xs opacity-70">
+                          {variant.price} د.ل
+                        </span>
+                      )}
+                      {isUnavailable && (
+                        <span className="text-xs text-destructive">
+                          {t("outOfStock")}
+                        </span>
+                      )}
+                    </Button>
                   );
-                  if (variant) setSelectedVariant(variant);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("selectVariant")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {product.variants
-                    .filter((v) => v.is_active)
-                    .map((variant) => (
-                      <SelectItem key={variant.id} value={String(variant.id)}>
-                        {variant.title}
-                        {variant.price && ` - ${variant.price} د.ل`}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+                })}
+              </div>
+
+              {selectableVariants.length === 0 && (
+                <p className="text-sm text-destructive">
+                  {t("noAvailableVariants")}
+                </p>
+              )}
             </div>
           )}
 
@@ -298,19 +359,35 @@ export default function ProductDetailClient() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                disabled={quantity <= 1}
+                onClick={() =>
+                  setQuantity((q) => Math.max(minimumQuantity, q - 1))
+                }
+                disabled={!canDecreaseQuantity}
                 aria-label={tA11y("decreaseQuantity")}
               >
                 <Minus className="h-4 w-4" />
               </Button>
+
               <span className="text-lg font-medium w-12 text-center">
                 {quantity}
               </span>
+
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setQuantity((q) => q + 1)}
+                onClick={() => {
+                  if (!canIncreaseQuantity) {
+                    toast.error(
+                      t("availableQuantityOnly", {
+                        count: availableQuantity,
+                      }),
+                    );
+                    return;
+                  }
+
+                  setQuantity((q) => q + 1);
+                }}
+                disabled={!isInStock() || !canIncreaseQuantity}
                 aria-label={tA11y("increaseQuantity")}
               >
                 <Plus className="h-4 w-4" />
@@ -323,7 +400,12 @@ export default function ProductDetailClient() {
             size="lg"
             className="w-full"
             onClick={handleAddToCart}
-            disabled={!isInStock() || cartLoading || !selectedVariant}
+            disabled={
+              hasMissingVariants ||
+              !isInStock() ||
+              cartLoading ||
+              (requiresVariantSelection && !selectedVariant)
+            }
           >
             {addedToCart ? (
               <>
@@ -333,7 +415,13 @@ export default function ProductDetailClient() {
             ) : (
               <>
                 <ShoppingCart className="me-2 h-5 w-5" />
-                {isInStock() ? t("addToCart") : t("outOfStock")}
+                {hasMissingVariants
+                  ? t("noAvailableVariants")
+                  : requiresVariantSelection && !selectedVariant
+                    ? t("selectVariant")
+                    : isInStock()
+                      ? t("addToCart")
+                      : t("outOfStock")}
               </>
             )}
           </Button>

@@ -164,20 +164,18 @@ export class StorefrontCartService {
         throw AppError.notFound("Cart not found");
       }
 
-      // Validate product: must be published and active in the same store
+      // Validate product: must be published in the same store
       const product = await tx.product.findFirst({
         where: {
           id: product_id,
           store_id: storeId,
           is_published: true,
-          status: "ACTIVE",
+          status: "PUBLISHED",
         },
       });
 
       if (!product) {
-        throw AppError.badRequest(
-          "Product is not available (not published or not active)",
-        );
+        throw AppError.badRequest("Product is not available (not published)");
       }
 
       // Validate variant: must be active and belong to the product
@@ -195,6 +193,9 @@ export class StorefrontCartService {
         throw AppError.badRequest(
           "Variant is not available (not active or does not belong to the product)",
         );
+      }
+      if (product.has_variants && variant.is_default) {
+        throw AppError.badRequest("Please select a product variant");
       }
 
       // Check existing cart item for this variant

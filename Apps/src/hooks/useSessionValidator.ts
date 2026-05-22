@@ -11,7 +11,11 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/lib/store/hooks";
 import { resetAuth } from "@/lib/store/slices/auth.slice";
-import { setAccessToken } from "@/lib/api/client";
+import {
+  getAccessToken,
+  refreshAccessToken,
+  setAccessToken,
+} from "@/lib/api/client";
 import { fetchProfileThunk } from "@/lib/store/slices/auth.thunks";
 import { ROUTES } from "@/lib/constants/routes";
 import { STORAGE_KEYS } from "@/lib/constants/storage";
@@ -44,11 +48,7 @@ export function useSessionValidator() {
 
       try {
         // Race between the actual validation and the timeout
-        await Promise.race([
-          dispatch(fetchProfileThunk()).unwrap(),
-          redirectTimeout,
-        ]);
-
+        await Promise.race([ensureSession(), redirectTimeout]);
         // Session is valid — clear the timeout
         if (timeoutId) clearTimeout(timeoutId);
       } catch {
@@ -57,7 +57,17 @@ export function useSessionValidator() {
         handleSessionExpiry();
       }
     }
+    async function ensureSession() {
+      if (!getAccessToken()) {
+        const refreshed = await refreshAccessToken();
 
+        if (!refreshed) {
+          throw new Error("Session expired");
+        }
+      }
+
+      await dispatch(fetchProfileThunk()).unwrap();
+    }
     function handleSessionExpiry() {
       // Clear access token from memory
       setAccessToken(null);

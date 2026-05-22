@@ -10,7 +10,7 @@
  * - SEO (meta_title max 70, meta_description max 160)
  *
  * Data is preserved when switching between tabs (no re-render/loss).
- * "Save as Draft" button sets status=DRAFT regardless of selected publish status.
+ * "Save as Draft" button sets status=DRAFT regardless of selected product status.
  *
  * Requirements: 9.4, 9.5, 6.6
  */
@@ -18,6 +18,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -43,17 +44,19 @@ import {
   productSchema,
   type ProductFormData,
 } from "@/lib/validators/product.schema";
-import { PRODUCT_STATUS_LABELS } from "@/lib/constants/enums";
+import { PRODUCT_STATUS, PRODUCT_STATUS_LABELS } from "@/lib/constants/enums";
 import { ROUTES } from "@/lib/constants/routes";
+import { formatCurrency, slugify } from "@/lib/utils";
+
 import type { Product, Category, ProductStatus } from "@/types";
 import type { ApiError } from "@/types/api.types";
 
 // Valid product status transitions
-const PRODUCT_STATUS_TRANSITIONS: Record<ProductStatus, ProductStatus[]> = {
-  DRAFT: ["ACTIVE"],
-  ACTIVE: ["ARCHIVED"],
-  ARCHIVED: ["DRAFT"],
-};
+const PRODUCT_STATUS_OPTIONS = Object.values(PRODUCT_STATUS) as ProductStatus[];
+
+function getAvailableProductStatuses(currentStatus: ProductStatus) {
+  return PRODUCT_STATUS_OPTIONS.filter((status) => status !== currentStatus);
+}
 
 export interface ProductFormProps {
   /** Existing product for edit mode (null for create) */
@@ -70,18 +73,20 @@ export interface ProductFormProps {
   onStatusChange?: (newStatus: ProductStatus) => Promise<void>;
 }
 
-/**
- * Generates a URL-friendly slug from a product name.
- */
-function generateSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^\w\u0600-\u06FF-]/g, "")
-    .replace(/[^\w-]/g, "")
-    .replace(/--+/g, "-")
-    .replace(/^-+|-+$/g, "");
+function getProductDefaults(product?: Product | null): ProductFormData {
+  return {
+    name: product?.name || "",
+    slug: product?.slug || "",
+    description: product?.description || "",
+    short_description: product?.short_description || "",
+    base_price: product?.base_price || "",
+    compare_at_price: product?.compare_at_price || "",
+    cost_price: product?.cost_price || "",
+    status: product?.status || "DRAFT",
+    track_inventory: product?.track_inventory ?? true,
+    meta_title: "",
+    meta_description: "",
+  };
 }
 
 export function ProductForm({
@@ -127,19 +132,9 @@ export function ProductForm({
     formState: { isSubmitting, errors, isDirty },
   } = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: product?.name || "",
-      slug: product?.slug || "",
-      description: product?.description || "",
-      short_description: product?.short_description || "",
-      base_price: product?.base_price || "",
-      compare_at_price: product?.compare_at_price || "",
-      cost_price: product?.cost_price || "",
-      status: product?.status || "DRAFT",
-      track_inventory: product?.track_inventory ?? true,
-      meta_title: "",
-      meta_description: "",
-    },
+    mode: "onBlur",
+    reValidateMode: "onChange",
+    defaultValues: getProductDefaults(product),
   });
 
   // Unsaved changes warning
@@ -161,6 +156,16 @@ export function ProductForm({
     }
   }, [hasDraft, isEditMode]);
 
+  useEffect(() => {
+    if (!product) return;
+
+    reset(getProductDefaults(product));
+    setSelectedCategories(
+      product.categories?.map((category) => category.id) || [],
+    );
+    setAutoSlug(!product.slug);
+  }, [product, reset]);
+
   const handleRestoreDraft = useCallback(() => {
     const data = restoreDraft();
     if (data) {
@@ -178,9 +183,11 @@ export function ProductForm({
   const nameValue = watch("name");
 
   useEffect(() => {
-    if (autoSlug && nameValue) {
-      const slug = generateSlug(nameValue);
-      setValue("slug", slug);
+    if (autoSlug) {
+      setValue("slug", nameValue ? slugify(nameValue) : "", {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
     }
   }, [nameValue, autoSlug, setValue]);
 
@@ -211,21 +218,26 @@ export function ProductForm({
   // Available status transitions for current product
   const availableTransitions = useMemo(() => {
     if (!product) return [];
-    return PRODUCT_STATUS_TRANSITIONS[product.status] || [];
+    return getAvailableProductStatuses(product.status);
   }, [product]);
 
+  const productMedia = useMemo(() => {
+    return [...(product?.media || [])].sort(
+      (a, b) => a.sort_order - b.sort_order,
+    );
+  }, [product?.media]);
+  const productVariants = useMemo(() => {
+    return [...(product?.variants || [])].sort((a, b) => {
+      if (a.is_default === b.is_default) return a.id - b.id;
+      return a.is_default ? -1 : 1;
+    });
+  }, [product?.variants]);
   // Handle status change
   const handleStatusChange = useCallback(
     async (newStatus: ProductStatus) => {
       if (!onStatusChange) return;
 
-      if (
-        !product ||
-        !PRODUCT_STATUS_TRANSITIONS[product.status]?.includes(newStatus)
-      ) {
-        toast.error(t("invalidStatusTransition"));
-        return;
-      }
+      if (!product) return;
 
       setStatusLoading(true);
       try {
@@ -248,6 +260,11 @@ export function ProductForm({
       await onSubmit({ ...data, category_ids: selectedCategories });
       clearDraft();
     } catch (err: unknown) {
+      if (typeof err === "string") {
+        setSummaryErrors([err]);
+        return;
+      }
+
       const apiError = err as ApiError;
       if (apiError?.errors || apiError?.message) {
         const fieldNames = [
@@ -286,6 +303,11 @@ export function ProductForm({
       clearDraft();
       toast.success(t("savedAsDraft"));
     } catch (err: unknown) {
+      if (typeof err === "string") {
+        setSummaryErrors([err]);
+        return;
+      }
+
       const apiError = err as ApiError;
       if (apiError?.errors || apiError?.message) {
         const fieldNames = [
@@ -541,8 +563,12 @@ export function ProductForm({
                     options={[
                       { value: "DRAFT", label: PRODUCT_STATUS_LABELS.DRAFT.ar },
                       {
-                        value: "ACTIVE",
-                        label: PRODUCT_STATUS_LABELS.ACTIVE.ar,
+                        value: "PENDING_REVIEW",
+                        label: PRODUCT_STATUS_LABELS.PENDING_REVIEW.ar,
+                      },
+                      {
+                        value: "PUBLISHED",
+                        label: PRODUCT_STATUS_LABELS.PUBLISHED.ar,
                       },
                     ]}
                   />
@@ -561,22 +587,74 @@ export function ProductForm({
               </CardHeader>
               <CardContent>
                 {isEditMode ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {t("variantsEditNote")}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        router.push(
-                          ROUTES.STORE_ADMIN.PRODUCT_EDIT(product!.id) +
-                            "/../variants",
-                        )
-                      }
-                    >
-                      {t("manageVariants")}
-                    </Button>
+                  <div className="space-y-4">
+                    {productVariants.length > 0 ? (
+                      <div className="overflow-x-auto rounded-md border">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/40 text-muted-foreground">
+                            <tr>
+                              <th className="px-4 py-3 text-right">العنوان</th>
+                              <th className="px-4 py-3 text-right">SKU</th>
+                              <th className="px-4 py-3 text-right">السعر</th>
+                              <th className="px-4 py-3 text-right">المخزون</th>
+                              <th className="px-4 py-3 text-right">الحالة</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {productVariants.map((variant) => (
+                              <tr key={variant.id} className="border-t">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <span>{variant.title}</span>
+                                    {variant.is_default && (
+                                      <Badge variant="outline">افتراضي</Badge>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3 text-muted-foreground">
+                                  {variant.sku || "—"}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {formatCurrency(
+                                    variant.price || product?.base_price || 0,
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  {variant.inventory?.available_quantity ?? 0}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <Badge
+                                    variant={
+                                      variant.is_active
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {variant.is_active ? "نشط" : "غير نشط"}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-center text-sm text-muted-foreground">
+                        لا توجد متغيرات لهذا المنتج حتى الآن.
+                      </p>
+                    )}
+
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          router.push(`/admin/products/${product!.id}/variants`)
+                        }
+                      >
+                        {t("manageVariants")}
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -597,22 +675,55 @@ export function ProductForm({
               </CardHeader>
               <CardContent>
                 {isEditMode ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {t("imagesEditNote")}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        router.push(
-                          ROUTES.STORE_ADMIN.PRODUCT_EDIT(product!.id) +
-                            "/../media",
-                        )
-                      }
-                    >
-                      {t("manageImages")}
-                    </Button>
+                  <div className="space-y-4">
+                    {productMedia.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+                        {productMedia.slice(0, 12).map((item, index) => (
+                          <div
+                            key={item.id}
+                            className="relative aspect-square overflow-hidden rounded-md border bg-muted"
+                          >
+                            <Image
+                              src={item.url}
+                              alt={
+                                item.alt_text || `${product?.name} ${index + 1}`
+                              }
+                              fill
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 16vw"
+                              className="object-cover"
+                            />
+                            {index === 0 && (
+                              <Badge className="absolute end-2 top-2">
+                                الرئيسية
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-sm text-muted-foreground">
+                        لا توجد صور لهذا المنتج حتى الآن.
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm text-muted-foreground">
+                        الصور تحفظ تلقائيا عند رفعها. لإضافة صور أو تعديل
+                        الترتيب افتح إدارة الصور.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          router.push(
+                            ROUTES.STORE_ADMIN.PRODUCT_EDIT(product!.id) +
+                              "/../media",
+                          )
+                        }
+                      >
+                        {t("manageImages")}
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">

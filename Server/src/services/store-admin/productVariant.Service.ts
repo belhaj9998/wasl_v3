@@ -1,6 +1,7 @@
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
 import { slugify } from "../../utils/slugify";
+import { mapProductVariantToDto } from "../../mappers";
 
 /**
  * Input for creating a product variant.
@@ -70,7 +71,7 @@ export class ProductVariantService {
       },
     });
 
-    return variants;
+    return variants.map(mapProductVariantToDto);
   }
 
   /**
@@ -187,7 +188,11 @@ export class ProductVariantService {
       });
     });
 
-    return variant;
+    if (!variant) {
+      throw AppError.notFound("Variant not found after create");
+    }
+
+    return mapProductVariantToDto(variant);
   }
 
   /**
@@ -207,7 +212,7 @@ export class ProductVariantService {
       throw AppError.notFound("Variant not found");
     }
 
-    return variant;
+    return mapProductVariantToDto(variant);
   }
 
   /**
@@ -295,7 +300,7 @@ export class ProductVariantService {
       },
     });
 
-    return updated;
+    return mapProductVariantToDto(updated);
   }
 
   /**
@@ -386,7 +391,7 @@ export class ProductVariantService {
       });
     });
 
-    return updated;
+    return mapProductVariantToDto(updated);
   }
 
   /**

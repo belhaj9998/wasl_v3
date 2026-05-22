@@ -3,6 +3,7 @@ import { asyncHandler } from "../../utils/asyncHandler";
 import { sendSuccess } from "../../utils/apiResponse";
 import { productMediaService } from "../../services/store-admin/productMedia.Service";
 import { AppRequest } from "../../types";
+import { AppError } from "../../utils/AppError";
 import "multer";
 
 /**
@@ -11,13 +12,30 @@ import "multer";
  */
 
 /**
+ * GET /products/:productId/media
+ * Returns all media files for a product.
+ */
+export const list = asyncHandler(async (req: AppRequest, res: Response) => {
+  const storeId = req.storeId!;
+  const productId = parseInt(req.params.productId as string, 10);
+
+  const media = await productMediaService.list(storeId, productId);
+
+  sendSuccess(res, media, "Media retrieved");
+});
+
+/**
  * POST /products/:productId/media
  * Uploads a media file for a product. File is provided via multer (req.file).
  */
 export const upload = asyncHandler(async (req: AppRequest, res: Response) => {
   const storeId = req.storeId!;
   const productId = parseInt(req.params.productId as string, 10);
-  const file = req.file!;
+  const file = req.file;
+
+  if (!file) {
+    throw AppError.badRequest("No media file provided");
+  }
 
   const media = await productMediaService.upload(storeId, productId, {
     originalname: file.originalname,

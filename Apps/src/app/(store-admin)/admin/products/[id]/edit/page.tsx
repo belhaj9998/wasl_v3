@@ -3,7 +3,7 @@
 /**
  * Product Edit Page
  * Renders the ProductForm in edit mode with tabbed interface.
- * Supports status transitions: DRAFT→ACTIVE, ACTIVE→ARCHIVED, ARCHIVED→DRAFT.
+ * Supports the product publishing workflow.
  * Tabs preserve data when switching between them.
  *
  * Requirements: 9.4, 9.5, 6.6
@@ -67,11 +67,11 @@ export default function ProductEditPage() {
     const payload = {
       name: data.name,
       slug: data.slug || undefined,
-      description: data.description || undefined,
-      short_description: data.short_description || undefined,
+      description: data.description || null,
+      short_description: data.short_description || null,
       base_price: data.base_price,
-      compare_at_price: data.compare_at_price || undefined,
-      cost_price: data.cost_price || undefined,
+      compare_at_price: data.compare_at_price || null,
+      cost_price: data.cost_price || null,
       track_inventory: data.track_inventory,
       category_ids: data.category_ids,
     };

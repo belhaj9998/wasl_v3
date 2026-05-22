@@ -18,11 +18,11 @@ import type {
 export interface CreateProductPayload {
   name: string;
   slug?: string;
-  description?: string;
-  short_description?: string;
+  description?: string | null;
+  short_description?: string | null;
   base_price: string;
-  compare_at_price?: string;
-  cost_price?: string;
+  compare_at_price?: string | null;
+  cost_price?: string | null;
   track_inventory?: boolean;
   category_ids?: number[];
   status?: string;
@@ -83,6 +83,13 @@ interface GenerateVariantsResponse {
   skipped: number;
   total: number;
 }
+
+interface DeleteProductResponse {
+  action: "deleted" | "archived";
+  productId?: number;
+  product?: Product;
+}
+
 export const productService = {
   getAll(storeId: number, params?: PaginationParams) {
     const query = params
@@ -130,7 +137,7 @@ export const productService = {
   },
 
   delete(storeId: number, productId: number) {
-    return apiClient<ApiResponse<null>>(
+    return apiClient<ApiResponse<DeleteProductResponse>>(
       `${API_ENDPOINTS.STORE.PRODUCTS(storeId)}/${productId}`,
       {
         method: "DELETE",

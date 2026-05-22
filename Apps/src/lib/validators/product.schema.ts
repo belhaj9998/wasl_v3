@@ -5,11 +5,23 @@ import { z } from "zod";
  * Validates: Requirements 7.2, 9.4, 9.5, 6.6
  */
 
-export const productSchema = z.object({
+const optionalSlugSchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z
+    .string()
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "الرابط المختصر يجب أن يحتوي على أحرف إنجليزية صغيرة وأرقام وشرطات فقط",
+    )
+    .optional(),
+);
+
+export const productSchema = z
+  .object({
   name: z
     .string()
-    .min(2, "Product name must be at least 2 characters")
-    .max(200, "Product name must not exceed 200 characters"),
+    .min(2, "اسم المنتج يجب أن يكون حرفين على الأقل")
+    .max(200, "اسم المنتج يجب ألا يتجاوز 200 حرف"),
   base_price: z
     .string()
     .refine(
@@ -17,18 +29,12 @@ export const productSchema = z.object({
         const num = parseFloat(val);
         return !isNaN(num) && num > 0;
       },
-      { message: "Base price must be a positive number" },
+      { message: "السعر الأساسي يجب أن يكون رقماً موجباً" },
     )
     .refine((val) => /^\d+(\.\d{1,2})?$/.test(val), {
-      message: "Base price must have at most 2 decimal places",
+      message: "السعر الأساسي يجب ألا يحتوي على أكثر من رقمين عشريين",
     }),
-  slug: z
-    .string()
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      "Slug must be lowercase alphanumeric with hyphens (store-unique pattern)",
-    )
-    .optional(),
+  slug: optionalSlugSchema,
   description: z.string().nullish(),
   short_description: z.string().nullish(),
   compare_at_price: z
@@ -39,14 +45,14 @@ export const productSchema = z.object({
         const num = parseFloat(val);
         return !isNaN(num) && num > 0;
       },
-      { message: "Compare at price must be a positive number" },
+      { message: "السعر قبل الخصم يجب أن يكون رقماً موجباً" },
     )
     .refine(
       (val) => {
         if (!val) return true;
         return /^\d+(\.\d{1,2})?$/.test(val);
       },
-      { message: "Compare at price must have at most 2 decimal places" },
+      { message: "السعر قبل الخصم يجب ألا يحتوي على أكثر من رقمين عشريين" },
     )
     .nullish(),
   cost_price: z
@@ -57,19 +63,41 @@ export const productSchema = z.object({
         const num = parseFloat(val);
         return !isNaN(num) && num >= 0;
       },
-      { message: "Cost price must be a non-negative number" },
+      { message: "سعر التكلفة يجب أن يكون صفراً أو أكثر" },
     )
     .nullish(),
   track_inventory: z.boolean().optional(),
-  status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
+  status: z
+    .enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"])
+    .optional(),
   meta_title: z
     .string()
-    .max(70, "Meta title must not exceed 70 characters")
+    .max(70, "عنوان SEO يجب ألا يتجاوز 70 حرفاً")
     .nullish(),
   meta_description: z
     .string()
-    .max(160, "Meta description must not exceed 160 characters")
+    .max(160, "وصف SEO يجب ألا يتجاوز 160 حرفاً")
     .nullish(),
-});
+  })
+  .superRefine((data, ctx) => {
+    if (!data.compare_at_price) {
+      return;
+    }
+
+    const basePrice = parseFloat(data.base_price);
+    const compareAtPrice = parseFloat(data.compare_at_price);
+
+    if (
+      !Number.isNaN(basePrice) &&
+      !Number.isNaN(compareAtPrice) &&
+      compareAtPrice <= basePrice
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["compare_at_price"],
+        message: "يجب أن يكون السعر قبل الخصم أعلى من السعر الأساسي",
+      });
+    }
+  });
 
 export type ProductFormData = z.infer<typeof productSchema>;

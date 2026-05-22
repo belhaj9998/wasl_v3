@@ -301,6 +301,7 @@ export default function NewOrderPage() {
         },
         payment_method: data.payment_method || "CASH_ON_DELIVERY",
         items: data.items.map((item) => ({
+          product_id: item.product_id,
           variant_id: item.variant_id,
           quantity: item.quantity,
         })),

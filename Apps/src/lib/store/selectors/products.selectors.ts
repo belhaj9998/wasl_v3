@@ -8,11 +8,11 @@ const selectProductsState = (state: RootState) => state.products;
 const selectProductItems = (state: RootState) => state.products.items;
 
 /**
- * Select only active products (status === 'ACTIVE')
+ * Select only published products.
  */
 export const selectActiveProducts = createSelector(
   [selectProductItems],
-  (items) => items.filter((p) => p.status === "ACTIVE"),
+  (items) => items.filter((p) => p.status === "PUBLISHED"),
 );
 
 /**

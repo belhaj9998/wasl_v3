@@ -6,7 +6,7 @@ import { storefrontPaymentService } from "../../services/storefront/payment.Serv
 import { storefrontCartService } from "../../services/storefront/cart.Service";
 import { StorefrontRequest } from "../../types/storefront.types";
 import { checkoutSchema } from "../../validators/storefront.validators";
-
+import { mapOrderToDto } from "../../mappers";
 /**
  * StorefrontCheckoutController handles the checkout process and payment webhooks.
  * All handlers are wrapped with asyncHandler for centralized error handling.
@@ -57,7 +57,7 @@ export const createCheckout = asyncHandler(
     sendSuccess(
       res,
       {
-        order,
+        order: mapOrderToDto(order),
         payment_link: paymentResult.paymentLink ?? null,
         client_secret: paymentResult.clientSecret ?? null,
       },

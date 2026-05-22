@@ -39,11 +39,8 @@ const ARABIC_CHAR_MAP: Record<string, string> = {
 
 const ARABIC_DIACRITICS = /[\u064B-\u065F\u0670]/g;
 
-/**
- * Generates a URL-safe slug from Arabic or English text.
- */
-export const slugify = (name: string, fallback = "product"): string => {
-  const transliterated = name
+export function slugify(value: string, fallback = "product"): string {
+  const transliterated = value
     .replace(ARABIC_DIACRITICS, "")
     .split("")
     .map((char) => ARABIC_CHAR_MAP[char] ?? char)
@@ -55,7 +52,7 @@ export const slugify = (name: string, fallback = "product"): string => {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^-+|-+$/g, "");
 
   return slug || fallback;
-};
+}

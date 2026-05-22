@@ -72,11 +72,11 @@ export class StorefrontCheckoutService {
         );
       }
 
-      // Validate all items: product active+published, variant active, inventory sufficient
+      // Validate all items: product published, variant active, inventory sufficient
       for (const item of cart.items) {
-        if (!item.product.is_published || item.product.status !== "ACTIVE") {
+        if (!item.product.is_published || item.product.status !== "PUBLISHED") {
           throw AppError.badRequest(
-            `Product "${item.product.name}" is no longer available (not published or not active)`,
+            `Product "${item.product.name}" is no longer available (not published)`,
           );
         }
 

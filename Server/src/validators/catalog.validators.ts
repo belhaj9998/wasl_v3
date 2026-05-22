@@ -1,5 +1,15 @@
 import { z } from "zod";
 
+const optionalPositiveMoneySchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.coerce.number().positive().nullable().optional(),
+);
+
+const optionalNonNegativeMoneySchema = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.coerce.number().min(0).nullable().optional(),
+);
+
 // ─── Category Schemas ────────────────────────────────────────────────────────
 
 /**
@@ -64,33 +74,74 @@ export const categoryListQuerySchema = z.object({
  * Requires name and base_price. Optional description, pricing, inventory, and category fields.
  * Validates: Requirements 8.2
  */
-export const createProductSchema = z.object({
-  name: z.string().min(2).max(200),
-  description: z.string().max(5000).nullable().optional(),
-  short_description: z.string().max(500).nullable().optional(),
-  base_price: z.number().positive(),
-  compare_at_price: z.number().positive().nullable().optional(),
-  cost_price: z.number().min(0).nullable().optional(),
-  track_inventory: z.boolean().optional().default(true),
-  has_variants: z.boolean().optional().default(false),
-  category_ids: z.array(z.number().int().positive()).optional().default([]),
-});
+export const createProductSchema = z
+  .object({
+    name: z.string().min(2).max(200),
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+    description: z.string().max(5000).nullable().optional(),
+    short_description: z.string().max(500).nullable().optional(),
+    base_price: z.coerce.number().positive(),
+    compare_at_price: optionalPositiveMoneySchema,
+    cost_price: optionalNonNegativeMoneySchema,
+    track_inventory: z.boolean().optional().default(true),
+    has_variants: z.boolean().optional().default(false),
+    status: z
+      .enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED"])
+      .optional()
+      .default("DRAFT"),
+    category_ids: z.array(z.number().int().positive()).optional().default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.compare_at_price !== null &&
+      data.compare_at_price !== undefined &&
+      data.compare_at_price <= data.base_price
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compare_at_price"],
+        message: "compare_at_price must be greater than base_price",
+      });
+    }
+  });
 
 /**
  * Update product request body schema.
  * All fields optional for PATCH semantics.
  * Validates: Requirements 10.2
  */
-export const updateProductSchema = z.object({
-  name: z.string().min(2).max(200).optional(),
-  description: z.string().max(5000).nullable().optional(),
-  short_description: z.string().max(500).nullable().optional(),
-  base_price: z.number().positive().optional(),
-  compare_at_price: z.number().positive().nullable().optional(),
-  cost_price: z.number().min(0).nullable().optional(),
-  track_inventory: z.boolean().optional(),
-  category_ids: z.array(z.number().int().positive()).optional(),
-});
+export const updateProductSchema = z
+  .object({
+    name: z.string().min(2).max(200).optional(),
+    slug: z
+      .string()
+      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+      .optional(),
+    description: z.string().max(5000).nullable().optional(),
+    short_description: z.string().max(500).nullable().optional(),
+    base_price: z.coerce.number().positive().optional(),
+    compare_at_price: optionalPositiveMoneySchema,
+    cost_price: optionalNonNegativeMoneySchema,
+    track_inventory: z.boolean().optional(),
+    category_ids: z.array(z.number().int().positive()).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.base_price !== undefined &&
+      data.compare_at_price !== null &&
+      data.compare_at_price !== undefined &&
+      data.compare_at_price <= data.base_price
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compare_at_price"],
+        message: "compare_at_price must be greater than base_price",
+      });
+    }
+  });
 
 /**
  * Update product status request body schema.
@@ -98,7 +149,7 @@ export const updateProductSchema = z.object({
  * Validates: Requirements 12.2
  */
 export const updateProductStatusSchema = z.object({
-  status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"]),
 });
 
 /**
@@ -118,7 +169,7 @@ export const publishProductSchema = z.object({
 export const productListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),
+  status: z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"]).optional(),
   category_id: z.coerce.number().int().positive().optional(),
   min_price: z.coerce.number().min(0).optional(),
   max_price: z.coerce.number().min(0).optional(),
@@ -180,33 +231,68 @@ export const updateOptionValueSchema = z.object({
  * Requires title and sku. Optional barcode, pricing, weight, active status, and option values.
  * Validates: Requirements 23.2
  */
-export const createVariantSchema = z.object({
-  title: z.string().min(1).max(200),
-  sku: z.string().min(1).max(100),
-  barcode: z.string().max(100).nullable().optional(),
-  price: z.number().min(0).nullable().optional(),
-  compare_at_price: z.number().min(0).nullable().optional(),
-  cost_price: z.number().min(0).nullable().optional(),
-  weight_grams: z.number().int().min(0).nullable().optional(),
-  is_active: z.boolean().optional().default(true),
-  option_value_ids: z.array(z.number().int().positive()).optional().default([]),
-});
+export const createVariantSchema = z
+  .object({
+    title: z.string().min(1).max(200),
+    sku: z.string().min(1).max(100),
+    barcode: z.string().max(100).nullable().optional(),
+    price: optionalNonNegativeMoneySchema,
+    compare_at_price: optionalNonNegativeMoneySchema,
+    cost_price: optionalNonNegativeMoneySchema,
+    weight_grams: z.coerce.number().int().min(0).nullable().optional(),
+    is_active: z.boolean().optional().default(true),
+    option_value_ids: z
+      .array(z.number().int().positive())
+      .optional()
+      .default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.price !== null &&
+      data.price !== undefined &&
+      data.compare_at_price !== null &&
+      data.compare_at_price !== undefined &&
+      data.compare_at_price <= data.price
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compare_at_price"],
+        message: "compare_at_price must be greater than price",
+      });
+    }
+  });
 
 /**
  * Update variant request body schema.
  * All fields optional for PATCH semantics.
  * Validates: Requirements 25.2
  */
-export const updateVariantSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  sku: z.string().min(1).max(100).optional(),
-  barcode: z.string().max(100).nullable().optional(),
-  price: z.number().min(0).nullable().optional(),
-  compare_at_price: z.number().min(0).nullable().optional(),
-  cost_price: z.number().min(0).nullable().optional(),
-  weight_grams: z.number().int().min(0).nullable().optional(),
-  is_active: z.boolean().optional(),
-});
+export const updateVariantSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    sku: z.string().min(1).max(100).optional(),
+    barcode: z.string().max(100).nullable().optional(),
+    price: optionalNonNegativeMoneySchema,
+    compare_at_price: optionalNonNegativeMoneySchema,
+    cost_price: optionalNonNegativeMoneySchema,
+    weight_grams: z.coerce.number().int().min(0).nullable().optional(),
+    is_active: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.price !== null &&
+      data.price !== undefined &&
+      data.compare_at_price !== null &&
+      data.compare_at_price !== undefined &&
+      data.compare_at_price <= data.price
+    ) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["compare_at_price"],
+        message: "compare_at_price must be greater than price",
+      });
+    }
+  });
 
 // ─── Inventory Schemas ───────────────────────────────────────────────────────
 

@@ -30,6 +30,7 @@ export interface CreateOrderPayload {
   };
   payment_method: string;
   items: Array<{
+    product_id: number;
     variant_id: number;
     quantity: number;
   }>;
@@ -43,7 +44,7 @@ export interface UpdateOrderStatusPayload {
 }
 
 export interface AddNotePayload {
-  content: string;
+  note: string;
 }
 
 export const orderService = {
@@ -58,18 +59,21 @@ export const orderService = {
   },
 
   getById(storeId: number, orderId: number) {
-    return apiClient<ApiResponse<Order>>(
+    return apiClient<ApiResponse<{ order: Order }>>(
       `${API_ENDPOINTS.STORE.ORDERS(storeId)}/${orderId}`,
       { storeId },
     );
   },
 
   create(storeId: number, payload: CreateOrderPayload) {
-    return apiClient<ApiResponse<Order>>(API_ENDPOINTS.STORE.ORDERS(storeId), {
-      method: "POST",
-      body: payload,
-      storeId,
-    });
+    return apiClient<ApiResponse<{ order: Order }>>(
+      API_ENDPOINTS.STORE.ORDERS(storeId),
+      {
+        method: "POST",
+        body: payload,
+        storeId,
+      },
+    );
   },
 
   updateStatus(
@@ -77,7 +81,7 @@ export const orderService = {
     orderId: number,
     payload: UpdateOrderStatusPayload,
   ) {
-    return apiClient<ApiResponse<Order>>(
+    return apiClient<ApiResponse<{ order: Order }>>(
       `${API_ENDPOINTS.STORE.ORDERS(storeId)}/${orderId}/status`,
       {
         method: "PATCH",
@@ -88,7 +92,7 @@ export const orderService = {
   },
 
   cancel(storeId: number, orderId: number, reason?: string) {
-    return apiClient<ApiResponse<Order>>(
+    return apiClient<ApiResponse<{ order: Order }>>(
       `${API_ENDPOINTS.STORE.ORDERS(storeId)}/${orderId}/cancel`,
       {
         method: "POST",
@@ -99,7 +103,7 @@ export const orderService = {
   },
 
   addNote(storeId: number, orderId: number, payload: AddNotePayload) {
-    return apiClient<ApiResponse<OrderNote>>(
+    return apiClient<ApiResponse<{ timeline: TimelineEvent }>>(
       `${API_ENDPOINTS.STORE.ORDERS(storeId)}/${orderId}/notes`,
       {
         method: "POST",
@@ -110,7 +114,7 @@ export const orderService = {
   },
 
   getTimeline(storeId: number, orderId: number) {
-    return apiClient<ApiResponse<TimelineEvent[]>>(
+    return apiClient<PaginatedResponse<TimelineEvent>>(
       `${API_ENDPOINTS.STORE.ORDERS(storeId)}/${orderId}/timeline`,
       { storeId },
     );

@@ -32,7 +32,7 @@ export const fetchOrderById = createAsyncThunk(
   ) => {
     try {
       const response = await orderService.getById(storeId, orderId);
-      return response.data;
+      return response.data.order;
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to fetch order";
@@ -49,7 +49,7 @@ export const createOrder = createAsyncThunk(
   ) => {
     try {
       const response = await orderService.create(storeId, payload);
-      return response.data;
+      return response.data.order;
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to create order";
@@ -74,7 +74,7 @@ export const updateOrderStatus = createAsyncThunk(
         orderId,
         payload,
       );
-      return response.data;
+      return response.data.order;
     } catch (error: unknown) {
       const message =
         error instanceof Error
@@ -97,7 +97,7 @@ export const cancelOrder = createAsyncThunk(
   ) => {
     try {
       const response = await orderService.cancel(storeId, orderId, reason);
-      return response.data;
+      return response.data.order;
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to cancel order";
@@ -118,7 +118,16 @@ export const addOrderNote = createAsyncThunk(
   ) => {
     try {
       const response = await orderService.addNote(storeId, orderId, payload);
-      return { orderId, note: response.data };
+      const timeline = response.data.timeline;
+      return {
+        orderId,
+        note: {
+          id: timeline.id,
+          content: timeline.note ?? timeline.description ?? "",
+          actor_name: timeline.actor_name,
+          created_at: timeline.created_at,
+        },
+      };
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "Failed to add note";

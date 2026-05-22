@@ -282,7 +282,11 @@ export default function OrderConfirmationPage() {
 /**
  * Maps payment method enum to translation key
  */
-function getPaymentMethodKey(method: string): string {
+function getPaymentMethodKey(method: string | null): string {
+  if (!method) {
+    return "cashOnDelivery";
+  }
+
   switch (method) {
     case "CASH_ON_DELIVERY":
       return "cashOnDelivery";

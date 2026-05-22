@@ -31,7 +31,12 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
   const result = await productService.list(storeId, {
     page: page ? parseInt(page as string, 10) : undefined,
     limit: limit ? parseInt(limit as string, 10) : undefined,
-    status: status as "DRAFT" | "ACTIVE" | "ARCHIVED" | undefined,
+    status: status as
+      | "DRAFT"
+      | "PENDING_REVIEW"
+      | "PUBLISHED"
+      | "ARCHIVED"
+      | undefined,
     category_id: category_id ? parseInt(category_id as string, 10) : undefined,
     min_price: min_price ? parseFloat(min_price as string) : undefined,
     max_price: max_price ? parseFloat(max_price as string) : undefined,
@@ -92,20 +97,24 @@ export const update = asyncHandler(async (req: AppRequest, res: Response) => {
 
 /**
  * DELETE /api/stores/:storeId/products/:id
- * Deletes a product and all related entities.
+ * Deletes a product or archives it when historical order records reference it.
  */
 export const remove = asyncHandler(async (req: AppRequest, res: Response) => {
   const storeId = req.storeId!;
   const productId = parseInt(req.params.id as string, 10);
 
-  await productService.delete(storeId, productId);
+  const result = await productService.delete(storeId, productId);
 
-  sendSuccess(res, null, "Product deleted");
+  sendSuccess(
+    res,
+    result,
+    result.action === "archived" ? "Product archived" : "Product deleted",
+  );
 });
 
 /**
  * PATCH /api/stores/:storeId/products/:id/status
- * Updates a product's status (DRAFT, ACTIVE, ARCHIVED).
+ * Updates a product's status.
  */
 export const updateStatus = asyncHandler(
   async (req: AppRequest, res: Response) => {

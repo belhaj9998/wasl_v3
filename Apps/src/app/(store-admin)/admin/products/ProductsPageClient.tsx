@@ -70,16 +70,16 @@ import type {
 import type { StatusVariant } from "@/components/shared/StatusBadge";
 
 // Valid product status transitions
-const PRODUCT_STATUS_TRANSITIONS: Record<ProductStatus, ProductStatus[]> = {
-  DRAFT: ["ACTIVE"],
-  ACTIVE: ["ARCHIVED"],
-  ARCHIVED: ["DRAFT"],
-};
+const PRODUCT_STATUS_OPTIONS = Object.values(PRODUCT_STATUS) as ProductStatus[];
 
+function getAvailableProductStatuses(currentStatus: ProductStatus) {
+  return PRODUCT_STATUS_OPTIONS.filter((status) => status !== currentStatus);
+}
 const STATUS_VARIANT_MAP: Record<ProductStatus, StatusVariant> = {
   DRAFT: "neutral",
-  ACTIVE: "success",
-  ARCHIVED: "warning",
+  PENDING_REVIEW: "warning",
+  PUBLISHED: "success",
+  ARCHIVED: "error",
 };
 
 export default function ProductsPageClient() {
@@ -243,13 +243,17 @@ export default function ProductsPageClient() {
 
     setActionLoading(true);
     try {
-      await dispatch(
+      const result = await dispatch(
         deleteProduct({
           storeId: currentStoreId,
           productId: deleteDialog.product.id,
         }),
       ).unwrap();
-      toast.success("تم حذف المنتج بنجاح");
+      toast.success(
+        result.action === "archived"
+          ? "تم حذف المنتج من القائمة وحفظ سجله لأنه مرتبط بطلبات"
+          : "تم حذف المنتج نهائيًا",
+      );
     } catch (err: unknown) {
       const message = typeof err === "string" ? err : "فشل حذف المنتج";
       toast.error(message);
@@ -355,8 +359,7 @@ export default function ProductsPageClient() {
         enableSorting: false,
         cell: ({ row }) => {
           const product = row.original;
-          const availableTransitions =
-            PRODUCT_STATUS_TRANSITIONS[product.status] || [];
+          const availableStatuses = getAvailableProductStatuses(product.status);
 
           return (
             <DropdownMenu>
@@ -391,7 +394,7 @@ export default function ProductsPageClient() {
                 </PermissionGate>
 
                 {/* Change Status */}
-                {availableTransitions.length > 0 && (
+                {availableStatuses.length > 0 && (
                   <PermissionGate permission="products.update">
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger>
@@ -399,7 +402,7 @@ export default function ProductsPageClient() {
                         تغيير الحالة
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent>
-                        {availableTransitions.map((status) => (
+                        {availableStatuses.map((status) => (
                           <DropdownMenuItem
                             key={status}
                             onClick={() => handleStatusChange(product, status)}
@@ -484,8 +487,11 @@ export default function ProductsPageClient() {
             <SelectItem value={PRODUCT_STATUS.DRAFT}>
               {PRODUCT_STATUS_LABELS.DRAFT.ar}
             </SelectItem>
-            <SelectItem value={PRODUCT_STATUS.ACTIVE}>
-              {PRODUCT_STATUS_LABELS.ACTIVE.ar}
+            <SelectItem value={PRODUCT_STATUS.PENDING_REVIEW}>
+              {PRODUCT_STATUS_LABELS.PENDING_REVIEW.ar}
+            </SelectItem>
+            <SelectItem value={PRODUCT_STATUS.PUBLISHED}>
+              {PRODUCT_STATUS_LABELS.PUBLISHED.ar}
             </SelectItem>
             <SelectItem value={PRODUCT_STATUS.ARCHIVED}>
               {PRODUCT_STATUS_LABELS.ARCHIVED.ar}
@@ -537,7 +543,7 @@ export default function ProductsPageClient() {
           if (!open) setDeleteDialog({ open: false, product: null });
         }}
         title="حذف المنتج"
-        description={`هل أنت متأكد من حذف المنتج "${deleteDialog.product?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`}
+        description={`هل أنت متأكد من حذف المنتج "${deleteDialog.product?.name}"؟ إذا كان مرتبطًا بطلبات قديمة سيُحفظ كسجل محذوف بدل الحذف النهائي.`}
         confirmLabel="حذف"
         cancelLabel="إلغاء"
         onConfirm={handleDelete}

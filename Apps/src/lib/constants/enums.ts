@@ -40,7 +40,8 @@ export type PaymentStatus =
 
 export const PRODUCT_STATUS = {
   DRAFT: "DRAFT",
-  ACTIVE: "ACTIVE",
+  PENDING_REVIEW: "PENDING_REVIEW",
+  PUBLISHED: "PUBLISHED",
   ARCHIVED: "ARCHIVED",
 } as const;
 
@@ -142,8 +143,12 @@ export const PRODUCT_STATUS_LABELS: Record<
   { ar: string; en: string }
 > = {
   [PRODUCT_STATUS.DRAFT]: { ar: "مسودة", en: "Draft" },
-  [PRODUCT_STATUS.ACTIVE]: { ar: "نشط", en: "Active" },
-  [PRODUCT_STATUS.ARCHIVED]: { ar: "مؤرشف", en: "Archived" },
+  [PRODUCT_STATUS.PENDING_REVIEW]: {
+    ar: "بانتظار المراجعة",
+    en: "Pending Review",
+  },
+  [PRODUCT_STATUS.PUBLISHED]: { ar: "منشور", en: "Published" },
+  [PRODUCT_STATUS.ARCHIVED]: { ar: "محذوف", en: "Removed" },
 };
 
 // ─── Store Status Labels ─────────────────────────────────────────────────────

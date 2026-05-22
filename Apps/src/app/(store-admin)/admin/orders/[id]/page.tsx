@@ -211,7 +211,7 @@ export default function OrderDetailPage() {
         addOrderNote({
           storeId: currentStoreId,
           orderId: order.id,
-          payload: { content: noteContent.trim() },
+          payload: { note: noteContent.trim() },
         }),
       ).unwrap();
       toast.success(
@@ -645,7 +645,14 @@ export default function OrderDetailPage() {
 
 // ─── Payment Method Labels ───────────────────────────────────────────────────
 
-function getPaymentMethodLabel(method: string, locale: "ar" | "en"): string {
+function getPaymentMethodLabel(
+  method: string | null,
+  locale: "ar" | "en",
+): string {
+  if (!method) {
+    return locale === "ar" ? "غير محدد" : "Not specified";
+  }
+
   const labels: Record<string, { ar: string; en: string }> = {
     CASH_ON_DELIVERY: { ar: "الدفع عند الاستلام", en: "Cash on Delivery" },
     CARD: { ar: "بطاقة", en: "Card" },

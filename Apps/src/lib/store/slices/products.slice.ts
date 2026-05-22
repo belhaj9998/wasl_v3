@@ -135,14 +135,17 @@ const productsSlice = createSlice({
       })
       .addCase(deleteProduct.fulfilled, (state, action) => {
         state.loading = false;
-        state.items = state.items.filter((p) => p.id !== action.payload);
-        if (state.currentProduct?.id === action.payload) {
-          state.currentProduct = null;
+        state.listCache = null;
+
+        const { productId, action: deleteAction, product } = action.payload;
+        state.items = state.items.filter((p) => p.id !== productId);
+        if (state.currentProduct?.id === productId) {
+          state.currentProduct =
+            deleteAction === "archived" && product ? product : null;
         }
       })
-      .addCase(deleteProduct.rejected, (state, action) => {
+      .addCase(deleteProduct.rejected, (state) => {
         state.loading = false;
-        state.error = action.payload as string;
       })
       // changeProductStatus
       .addCase(changeProductStatus.pending, (state) => {
@@ -151,10 +154,13 @@ const productsSlice = createSlice({
       })
       .addCase(changeProductStatus.fulfilled, (state, action) => {
         state.loading = false;
+        state.listCache = null;
+
         const index = state.items.findIndex((p) => p.id === action.payload.id);
         if (index !== -1) {
           state.items[index] = action.payload;
         }
+
         if (state.currentProduct?.id === action.payload.id) {
           state.currentProduct = action.payload;
         }

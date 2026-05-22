@@ -355,6 +355,13 @@ router.get(
 
 // ========== Media Routes ==========
 
+// GET /products/:productId/media — list media
+router.get(
+  "/products/:productId/media",
+  requirePermission("products.view"),
+  productMediaController.list,
+);
+
 // POST /products/:productId/media — upload media (with multer)
 router.post(
   "/products/:productId/media",

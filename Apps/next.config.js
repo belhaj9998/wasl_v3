@@ -85,6 +85,17 @@ const nextConfig = {
     ];
   },
 
+  // Proxy uploaded files from the API server so relative /uploads URLs render
+  // correctly inside the Next.js app.
+  async rewrites() {
+    return [
+      {
+        source: "/uploads/:path*",
+        destination: `${apiOrigin}/uploads/:path*`,
+      },
+    ];
+  },
+
   // Typed routes disabled — dynamic route patterns from ROUTES constants
   // are not compatible with Next.js static route type generation
   // typedRoutes: true,

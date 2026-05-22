@@ -101,8 +101,12 @@ export const deleteProduct = createAsyncThunk(
   ) => {
     dispatch(optimisticDeleteProduct(productId));
     try {
-      await productService.delete(storeId, productId);
-      return productId;
+      const response = await productService.delete(storeId, productId);
+      return {
+        productId,
+        action: response.data.action,
+        product: response.data.product,
+      };
     } catch (error: unknown) {
       dispatch(rollbackProducts());
       const message =

@@ -3,6 +3,7 @@ import fs from "fs/promises";
 import { randomUUID } from "crypto";
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
+import { mapProductMediaToDto } from "../../mappers";
 
 /**
  * Allowed image MIME types for product media uploads.
@@ -53,6 +54,27 @@ interface ReorderItem {
  * Uses local file storage (uploads/ directory) with the option to swap to S3 later.
  */
 export class ProductMediaService {
+  /**
+   * Lists media files for a product, ordered by sort_order.
+   */
+  async list(storeId: number, productId: number) {
+    const product = await prisma.product.findFirst({
+      where: { id: productId, store_id: storeId },
+      select: { id: true },
+    });
+
+    if (!product) {
+      throw AppError.notFound("Product not found");
+    }
+
+    const media = await prisma.productMedia.findMany({
+      where: { product_id: productId, store_id: storeId },
+      orderBy: { sort_order: "asc" },
+    });
+
+    return media.map(mapProductMediaToDto);
+  }
+
   /**
    * Uploads a media file for a product.
    * Validates file type (jpg, png, webp, gif) and size (≤5MB),
@@ -116,7 +138,7 @@ export class ProductMediaService {
       },
     });
 
-    return media;
+    return mapProductMediaToDto(media);
   }
 
   /**
@@ -144,7 +166,7 @@ export class ProductMediaService {
       data: { alt_text: altText },
     });
 
-    return updated;
+    return mapProductMediaToDto(updated);
   }
 
   /**
@@ -198,7 +220,7 @@ export class ProductMediaService {
       orderBy: { sort_order: "asc" },
     });
 
-    return updatedMedia;
+    return updatedMedia.map(mapProductMediaToDto);
   }
 
   /**

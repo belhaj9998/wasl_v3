@@ -55,8 +55,8 @@ export interface Order {
   customer_name: string;
   customer_phone: string;
   customer_email: string | null;
-  shipping_address: Address;
-  payment_method: PaymentMethod;
+  shipping_address: Address | null;
+  payment_method: PaymentMethod | null;
   notes_from_customer: string | null;
   internal_notes: OrderNote[];
   items: OrderItem[];
@@ -70,7 +70,7 @@ export interface OrderItem {
   product_id: number;
   variant_id: number;
   product_name: string;
-  variant_title: string;
+  variant_title: string | null;
   sku: string;
   quantity: number;
   unit_price: string;
@@ -80,7 +80,7 @@ export interface OrderItem {
 export interface OrderNote {
   id: number;
   content: string;
-  actor_name: string;
+  actor_name: string | null;
   created_at: string;
 }
 
@@ -88,17 +88,26 @@ export interface TimelineEvent {
   id: number;
   event: string;
   description: string | null;
+  note?: string | null;
+  from_status?: OrderStatus | null;
+  to_status?: OrderStatus | null;
   actor_name: string | null;
+  actor_user_id?: number | null;
+  payload?: unknown;
   created_at: string;
 }
 
 export interface Address {
+  id?: number;
+  type?: "SHIPPING" | "BILLING" | "OTHER";
   full_name: string;
+  phone?: string | null;
   city: string;
   street_line_1: string;
   street_line_2?: string | null;
+  region?: string | null;
   state?: string | null;
   postal_code?: string | null;
   country?: string | null;
-  type?: "SHIPPING" | "BILLING" | "OTHER";
+  google_maps_url?: string | null;
 }

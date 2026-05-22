@@ -40,7 +40,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
 import { useStore } from "@/hooks/useStore";
-import { uploadService } from "@/lib/api/services/upload.service";
 import { apiClient } from "@/lib/api/client";
 import { API_ENDPOINTS } from "@/lib/constants";
 import type { ApiResponse } from "@/types";
@@ -69,12 +68,13 @@ export default function ProductMediaPage() {
   const { currentStoreId } = useStore();
   const productId = Number(params.id);
 
-  // State
-  const [media, setMedia] = useState<ProductMedia[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
-  const [actionLoading, setActionLoading] = useState(false);
+	  // State
+	  const [media, setMedia] = useState<ProductMedia[]>([]);
+	  const [loading, setLoading] = useState(true);
+	  const [uploading, setUploading] = useState(false);
+	  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+	  const [actionLoading, setActionLoading] = useState(false);
+	  const [isUploadDragOver, setIsUploadDragOver] = useState(false);
 
   // Drag state
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -136,19 +136,20 @@ export default function ProductMediaPage() {
     return null;
   };
 
-  const handleFileSelect = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (!files || files.length === 0 || !currentStoreId) return;
+	  const uploadFiles = useCallback(
+	    async (files: FileList | File[] | null) => {
+	      if (!files || files.length === 0) return;
 
-      // Reset file input
-      e.target.value = "";
+	      if (!currentStoreId || !productId) {
+	        setUploadErrors(["لا يمكن رفع الصور قبل تحميل المتجر والمنتج"]);
+	        return;
+	      }
 
-      const remainingSlots = MAX_MEDIA_COUNT - media.length;
-      if (remainingSlots <= 0) {
-        toast.error(`تم الوصول للحد الأقصى (${MAX_MEDIA_COUNT} صورة)`);
-        return;
-      }
+	      const remainingSlots = MAX_MEDIA_COUNT - media.length;
+	      if (remainingSlots <= 0) {
+	        toast.error(`تم الوصول للحد الأقصى (${MAX_MEDIA_COUNT} صورة)`);
+	        return;
+	      }
 
       const filesToUpload = Array.from(files).slice(0, remainingSlots);
       const errors: string[] = [];
@@ -178,25 +179,25 @@ export default function ProductMediaPage() {
       setUploading(true);
       setUploadErrors([]);
 
+      let uploadedCount = 0;
+
       // Upload files sequentially
       for (const file of validFiles) {
         try {
           const formData = new FormData();
-          formData.append("image", file);
+          formData.append("file", file);
 
-          const response = await apiClient<ApiResponse<ProductMedia>>(
+          const response = await apiClient<ApiResponse<{ media: ProductMedia }>>(
             `${API_ENDPOINTS.STORE.PRODUCTS(currentStoreId)}/${productId}/media`,
             {
               method: "POST",
-              body: formData as unknown,
+              body: formData,
               storeId: currentStoreId,
-              headers: {
-                "Content-Type": "",
-              },
             },
           );
 
-          setMedia((prev) => [...prev, response.data]);
+          setMedia((prev) => [...prev, response.data.media]);
+          uploadedCount += 1;
         } catch (err: unknown) {
           const message =
             err && typeof err === "object" && "message" in err
@@ -204,6 +205,14 @@ export default function ProductMediaPage() {
               : `فشل رفع "${file.name}"`;
           errors.push(message);
         }
+      }
+
+      if (uploadedCount > 0) {
+        toast.success(
+          uploadedCount === 1
+            ? "تم رفع الصورة وحفظها تلقائيا"
+            : `تم رفع ${uploadedCount} صور وحفظها تلقائيا`,
+        );
       }
 
       if (errors.length > 0) {
@@ -214,6 +223,23 @@ export default function ProductMediaPage() {
     },
     [currentStoreId, productId, media.length],
   );
+
+  const handleFileSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      await uploadFiles(e.target.files);
+      e.target.value = "";
+    },
+    [uploadFiles],
+  );
+
+  const handleUploadDrop = useCallback(
+	    async (e: React.DragEvent<HTMLDivElement>) => {
+	      e.preventDefault();
+	      setIsUploadDragOver(false);
+	      await uploadFiles(e.dataTransfer.files);
+	    },
+	    [uploadFiles],
+	  );
 
   // ========== Drag & Drop Reorder ==========
 
@@ -270,7 +296,7 @@ export default function ProductMediaPage() {
           `${API_ENDPOINTS.STORE.PRODUCTS(currentStoreId)}/${productId}/media/reorder`,
           {
             method: "PATCH",
-            body: { media: sortPayload },
+            body: { items: sortPayload },
             storeId: currentStoreId,
           },
         );
@@ -402,11 +428,26 @@ export default function ProductMediaPage() {
           <CardTitle className="text-lg">رفع صور جديدة</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div
-            className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors"
-            onClick={() => fileInputRef.current?.click()}
-            role="button"
-            tabIndex={0}
+	          <div
+	            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors ${
+	              isUploadDragOver ? "border-primary bg-primary/5" : ""
+	            }`}
+	            onClick={() => fileInputRef.current?.click()}
+	            onDragEnter={(e) => {
+	              e.preventDefault();
+	              setIsUploadDragOver(true);
+	            }}
+	            onDragOver={(e) => {
+	              e.preventDefault();
+	              setIsUploadDragOver(true);
+	            }}
+	            onDragLeave={(e) => {
+	              e.preventDefault();
+	              setIsUploadDragOver(false);
+	            }}
+	            onDrop={handleUploadDrop}
+	            role="button"
+	            tabIndex={0}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 fileInputRef.current?.click();

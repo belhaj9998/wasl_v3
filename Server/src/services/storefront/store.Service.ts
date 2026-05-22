@@ -1,5 +1,6 @@
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
+import { storefrontPurchasableProductWhere } from "../../utils/productVisibility";
 
 /**
  * Represents a category tree node with nested children for storefront display.
@@ -121,13 +122,14 @@ export class StorefrontStoreService {
       throw AppError.notFound("Category not found");
     }
 
-    // Get published + active products in this category, paginated
+    // Get published products in this category, paginated
     const [products, total] = await Promise.all([
       prisma.product.findMany({
         where: {
           store_id: storeId,
           is_published: true,
-          status: "ACTIVE",
+          status: "PUBLISHED",
+          AND: [storefrontPurchasableProductWhere],
           categories: {
             some: {
               category_id: category.id,
@@ -161,7 +163,8 @@ export class StorefrontStoreService {
         where: {
           store_id: storeId,
           is_published: true,
-          status: "ACTIVE",
+          status: "PUBLISHED",
+          AND: [storefrontPurchasableProductWhere],
           categories: {
             some: {
               category_id: category.id,

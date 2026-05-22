@@ -42,7 +42,8 @@ enum SubscriptionStatus {
 
 enum ProductStatus {
   DRAFT
-  ACTIVE
+  PENDING_REVIEW
+  PUBLISHED
   ARCHIVED
 }
 

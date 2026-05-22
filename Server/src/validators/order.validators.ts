@@ -64,6 +64,7 @@ export const createAddressSchema = z.object({
   phone: z.string().min(8).max(20).optional(),
   city: z.string().min(1).max(100),
   region: z.string().max(100).optional(),
+  state: z.string().max(100).optional(),
   street_line_1: z.string().min(1).max(300),
   street_line_2: z.string().max(300).optional(),
   postal_code: z.string().max(20).optional(),
@@ -196,9 +197,15 @@ const createOrderItemSchema = z.object({
  */
 export const createOrderSchema = z.object({
   customer_id: z.number().int().positive().optional(),
+  customer_name: z.string().min(1).max(200).optional(),
+  customer_phone: z.string().min(8).max(20).optional(),
+  customer_email: z.string().email().max(255).optional(),
   source: z
     .enum(["STOREFRONT", "ADMIN", "MANUAL", "INSTAGRAM", "FACEBOOK", "TIKTOK"])
     .default("ADMIN"),
+  payment_method: z
+    .enum(["CASH_ON_DELIVERY", "CARD", "BANK_TRANSFER", "WALLET", "MANUAL"])
+    .optional(),
   items: z.array(createOrderItemSchema).min(1),
   shipping_address: createAddressSchema,
   billing_address: createAddressSchema.optional(),

@@ -1,5 +1,6 @@
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
+import { mapProductOptionToDto } from "../../mappers";
 
 /**
  * Input for creating a product option.
@@ -63,7 +64,7 @@ export class ProductOptionService {
       },
     });
 
-    return options;
+    return options.map(mapProductOptionToDto);
   }
   async getById(storeId: number, productId: number, optionId: number) {
     const option = await prisma.productOption.findFirst({
@@ -77,7 +78,7 @@ export class ProductOptionService {
       throw AppError.notFound("Product option not found");
     }
 
-    return option;
+    return mapProductOptionToDto(option);
   }
 
   /**
@@ -132,7 +133,7 @@ export class ProductOptionService {
       },
     });
 
-    return option;
+    return mapProductOptionToDto(option);
   }
 
   /**
@@ -189,7 +190,7 @@ export class ProductOptionService {
       },
     });
 
-    return updated;
+    return mapProductOptionToDto(updated);
   }
 
   /**

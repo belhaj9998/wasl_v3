@@ -36,6 +36,19 @@ export function getCustomerToken(): string | null {
   return _customerToken;
 }
 
+function shouldRefreshBeforeRequest(
+  url: string,
+  skipAuthRedirect: boolean,
+): boolean {
+  if (skipAuthRedirect) return false;
+  if (_accessToken || _customerToken) return false;
+
+  return (
+    url.startsWith("/auth/me") ||
+    url.startsWith("/stores/") ||
+    url.startsWith("/platform/")
+  );
+}
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -92,6 +105,9 @@ async function attemptRefresh(): Promise<boolean> {
 
   return _refreshPromise;
 }
+export function refreshAccessToken(): Promise<boolean> {
+  return attemptRefresh();
+}
 // ---------------------------------------------------------------------------
 // Core API client function
 // ---------------------------------------------------------------------------
@@ -108,7 +124,24 @@ export async function apiClient<T>(
     _isRetry = false,
     skipAuthRedirect = false,
   } = options;
+  if (shouldRefreshBeforeRequest(url, skipAuthRedirect)) {
+    const refreshed = await attemptRefresh();
 
+    if (!refreshed) {
+      setAccessToken(null);
+      setCustomerToken(null);
+
+      if (
+        typeof window !== "undefined" &&
+        !_suppressSessionExpiredRedirect &&
+        !skipAuthRedirect
+      ) {
+        window.location.href = "/login?session_expired=true";
+      }
+
+      throw new Error("Session expired");
+    }
+  }
   // Build headers — Content-Type defaults to application/json with override support
   const isFormData =
     typeof FormData !== "undefined" && body instanceof FormData;
@@ -157,7 +190,7 @@ export async function apiClient<T>(
   const response = await fetch(`${API_BASE_URL}${url}`, fetchOptions);
 
   // Auto-refresh on 401 with single retry guard
-  if (response.status === 401 && !_isRetry) {
+  if (response.status === 401 && !_isRetry && !skipAuthRedirect) {
     const refreshed = await attemptRefresh();
 
     if (refreshed) {

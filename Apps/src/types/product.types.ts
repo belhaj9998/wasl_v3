@@ -2,7 +2,11 @@
  * Product & Catalog Types
  */
 
-export type ProductStatus = "DRAFT" | "ACTIVE" | "ARCHIVED";
+export type ProductStatus =
+  | "DRAFT"
+  | "PENDING_REVIEW"
+  | "PUBLISHED"
+  | "ARCHIVED";
 
 export interface Product {
   id: number;

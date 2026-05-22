@@ -16,6 +16,7 @@ export class StoreSettingsService {
     });
 
     if (!store) {
+      console.log("erroe bta# store");
       throw AppError.notFound("Store not found");
     }
 

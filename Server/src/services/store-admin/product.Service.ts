@@ -1,6 +1,9 @@
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
 import { slugify } from "../../utils/slugify";
+import { mapProductToDto } from "../../mappers";
+
+type ProductStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "ARCHIVED";
 
 /**
  * Parameters for listing products with pagination, filtering, and sorting.
@@ -8,7 +11,7 @@ import { slugify } from "../../utils/slugify";
 interface ProductListParams {
   page?: number;
   limit?: number;
-  status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  status?: ProductStatus;
   category_id?: number;
   min_price?: number;
   max_price?: number;
@@ -23,6 +26,7 @@ interface ProductListParams {
  */
 interface CreateProductInput {
   name: string;
+  slug?: string;
   description?: string | null;
   short_description?: string | null;
   base_price: number;
@@ -30,6 +34,7 @@ interface CreateProductInput {
   cost_price?: number | null;
   track_inventory?: boolean;
   has_variants?: boolean;
+  status?: Exclude<ProductStatus, "ARCHIVED">;
   category_ids?: number[];
 }
 
@@ -38,6 +43,7 @@ interface CreateProductInput {
  */
 interface UpdateProductInput {
   name?: string;
+  slug?: string;
   description?: string | null;
   short_description?: string | null;
   base_price?: number;
@@ -76,6 +82,8 @@ export class ProductService {
 
     if (status) {
       where.status = status;
+    } else {
+      where.status = { not: "ARCHIVED" };
     }
 
     if (is_published !== undefined) {
@@ -130,8 +138,8 @@ export class ProductService {
           media: { orderBy: { sort_order: "asc" }, take: 1 },
           variants: {
             where: { is_active: true },
-            take: 1,
             orderBy: { sort_order: "asc" },
+            include: { inventory: true },
           },
         },
         skip: (page - 1) * limit,
@@ -142,7 +150,7 @@ export class ProductService {
     ]);
 
     return {
-      data,
+      data: data.map(mapProductToDto),
       meta: {
         total,
         page,
@@ -161,6 +169,7 @@ export class ProductService {
   async create(storeId: number, data: CreateProductInput) {
     const {
       name,
+      slug: requestedSlug,
       description,
       short_description,
       base_price,
@@ -168,6 +177,7 @@ export class ProductService {
       cost_price,
       track_inventory = true,
       has_variants = false,
+      status = "DRAFT",
       category_ids,
     } = data;
 
@@ -195,7 +205,7 @@ export class ProductService {
     }
 
     // Generate unique slug
-    const baseSlug = slugify(name);
+    const baseSlug = slugify(requestedSlug || name);
     const slug = await this.ensureUniqueSlug(null, storeId, baseSlug);
 
     // Create product in transaction
@@ -213,8 +223,9 @@ export class ProductService {
           cost_price: cost_price ?? null,
           track_inventory,
           has_variants,
-          status: "DRAFT",
-          is_published: false,
+          status,
+          is_published: status === "PUBLISHED",
+          published_at: status === "PUBLISHED" ? new Date() : null,
         },
       });
 
@@ -274,7 +285,11 @@ export class ProductService {
       });
     });
 
-    return product;
+    if (!product) {
+      throw AppError.notFound("Product not found after create");
+    }
+
+    return mapProductToDto(product);
   }
 
   /**
@@ -307,7 +322,7 @@ export class ProductService {
       throw AppError.notFound("Product not found");
     }
 
-    return product;
+    return mapProductToDto(product);
   }
 
   /**
@@ -326,13 +341,16 @@ export class ProductService {
 
     const updateData: any = {};
 
-    // Handle name change — regenerate slug
+    // Handle name/slug change
     if (data.name !== undefined) {
       updateData.name = data.name;
+    }
+
+    if (data.slug !== undefined || data.name !== undefined) {
       updateData.slug = await this.ensureUniqueSlug(
         null,
         storeId,
-        slugify(data.name),
+        slugify(data.slug || data.name || product.name),
         productId,
       );
     }
@@ -435,11 +453,16 @@ export class ProductService {
       });
     });
 
-    return updated;
+    if (!updated) {
+      throw AppError.notFound("Product not found after update");
+    }
+
+    return mapProductToDto(updated);
   }
 
   /**
-   * Deletes a product. Cascade handles variants, options, media, inventory, category links.
+   * Safely removes a product. Products referenced by historical orders are
+   * archived instead of hard-deleted so order records remain valid.
    */
   async delete(storeId: number, productId: number) {
     const product = await prisma.product.findFirst({
@@ -450,19 +473,44 @@ export class ProductService {
       throw AppError.notFound("Product not found");
     }
 
+    const orderItemCount = await prisma.orderItem.count({
+      where: { store_id: storeId, product_id: productId },
+    });
+
+    if (orderItemCount > 0) {
+      await prisma.$transaction(async (tx) => {
+        await tx.cartItem.deleteMany({
+          where: { store_id: storeId, product_id: productId },
+        });
+
+        await tx.product.update({
+          where: { id_store_id: { id: productId, store_id: storeId } },
+          data: {
+            status: "ARCHIVED",
+            is_published: false,
+            published_at: null,
+          },
+        });
+      });
+
+      const archivedProduct = await this.getById(storeId, productId);
+      return { action: "archived" as const, product: archivedProduct };
+    }
+
     await prisma.product.delete({
       where: { id_store_id: { id: productId, store_id: storeId } },
     });
+
+    return { action: "deleted" as const, productId };
   }
 
   /**
-   * Updates product status with transition validation.
-   * Valid transitions: DRAFT→ACTIVE, ACTIVE→ARCHIVED, ARCHIVED→DRAFT.
+   * Updates product status and keeps legacy publish fields in sync.
    */
   async updateStatus(
     storeId: number,
     productId: number,
-    status: "DRAFT" | "ACTIVE" | "ARCHIVED",
+    status: ProductStatus,
   ) {
     const product = await prisma.product.findFirst({
       where: { id: productId, store_id: storeId },
@@ -472,31 +520,29 @@ export class ProductService {
       throw AppError.notFound("Product not found");
     }
 
-    // Validate status transition
-    const validTransitions: Record<string, string[]> = {
-      DRAFT: ["ACTIVE"],
-      ACTIVE: ["ARCHIVED"],
-      ARCHIVED: ["DRAFT"],
-    };
-
-    const allowedNextStatuses = validTransitions[product.status] || [];
-    if (!allowedNextStatuses.includes(status)) {
-      throw AppError.badRequest(
-        `Invalid status transition from ${product.status} to ${status}`,
-      );
+    if (status === "PUBLISHED") {
+      await this.assertProductCanBePublished(storeId, productId);
     }
 
-    const updated = await prisma.product.update({
+    const updateData: any = {
+      status,
+      is_published: status === "PUBLISHED",
+      published_at: status === "PUBLISHED"
+        ? product.published_at ?? new Date()
+        : null,
+    };
+
+    await prisma.product.update({
       where: { id_store_id: { id: productId, store_id: storeId } },
-      data: { status },
+      data: updateData,
     });
 
-    return updated;
+    return this.getById(storeId, productId);
   }
 
   /**
-   * Publishes or unpublishes a product.
-   * Sets is_published and published_at timestamp (only on publish).
+   * Publishes or unpublishes a product, keeping legacy is_published
+   * derived from status during the transition period.
    */
   async publish(storeId: number, productId: number, publish: boolean) {
     const product = await prisma.product.findFirst({
@@ -507,18 +553,24 @@ export class ProductService {
       throw AppError.notFound("Product not found");
     }
 
-    const updateData: any = { is_published: publish };
+    const status: ProductStatus = publish ? "PUBLISHED" : "DRAFT";
 
     if (publish) {
-      updateData.published_at = new Date();
+      await this.assertProductCanBePublished(storeId, productId);
     }
 
-    const updated = await prisma.product.update({
+    const updateData: any = {
+      status,
+      is_published: publish,
+      published_at: publish ? product.published_at ?? new Date() : null,
+    };
+
+    await prisma.product.update({
       where: { id_store_id: { id: productId, store_id: storeId } },
       data: updateData,
     });
 
-    return updated;
+    return this.getById(storeId, productId);
   }
 
   /**
@@ -702,10 +754,49 @@ export class ProductService {
       });
     });
 
-    return duplicated;
+    if (!duplicated) {
+      throw AppError.notFound("Product not found after duplicate");
+    }
+
+    return mapProductToDto(duplicated);
   }
 
   // ─── Helper Methods ──────────────────────────────────────────────────────────
+
+  /**
+   * Configurable products must have at least one active purchasable variant
+   * before they can be published to the storefront.
+   */
+  private async assertProductCanBePublished(
+    storeId: number,
+    productId: number,
+  ) {
+    const product = await prisma.product.findFirst({
+      where: { id: productId, store_id: storeId },
+      select: { has_variants: true },
+    });
+
+    if (!product) {
+      throw AppError.notFound("Product not found");
+    }
+
+    if (!product.has_variants) return;
+
+    const purchasableVariantCount = await prisma.productVariant.count({
+      where: {
+        store_id: storeId,
+        product_id: productId,
+        is_active: true,
+        is_default: false,
+      },
+    });
+
+    if (purchasableVariantCount === 0) {
+      throw AppError.badRequest(
+        "Cannot publish product with variant options until at least one purchasable variant exists",
+      );
+    }
+  }
 
   /**
    * Ensures slug uniqueness within a store by appending numeric suffix if needed.

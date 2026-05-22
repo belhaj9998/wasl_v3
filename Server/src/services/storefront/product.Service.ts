@@ -1,5 +1,9 @@
 import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
+import {
+  getStorefrontVisibleVariants,
+  storefrontPurchasableProductWhere,
+} from "../../utils/productVisibility";
 
 /**
  * Parameters for listing storefront products with pagination, filtering, and sorting.
@@ -22,7 +26,7 @@ interface StorefrontProductListParams {
 export class StorefrontProductService {
   /**
    * Lists published and active products with pagination, filtering, and sorting.
-   * Only returns products where is_published=true and status=ACTIVE.
+   * Only returns products where is_published=true and status=PUBLISHED.
    * Requirements: 5.1, 5.2, 5.3, 5.4
    */
   async listProducts(storeId: number, params: StorefrontProductListParams) {
@@ -39,11 +43,12 @@ export class StorefrontProductService {
     // Clamp limit to max 100
     const effectiveLimit = Math.min(limit, 100);
 
-    // Build where clause — only published + active products
+    // Build where clause — only published products
     const where: any = {
       store_id: storeId,
       is_published: true,
-      status: "ACTIVE",
+      status: "PUBLISHED",
+      AND: [storefrontPurchasableProductWhere],
     };
 
     // Filter by category
@@ -81,8 +86,12 @@ export class StorefrontProductService {
           media: { orderBy: { sort_order: "asc" }, take: 1 },
           variants: {
             where: { is_active: true },
-            take: 1,
             orderBy: { sort_order: "asc" },
+            include: {
+              inventory: {
+                select: { available_quantity: true },
+              },
+            },
           },
           categories: {
             include: {
@@ -98,7 +107,13 @@ export class StorefrontProductService {
     ]);
 
     return {
-      data,
+      data: data.map((product) => ({
+        ...product,
+        variants: getStorefrontVisibleVariants(
+          product.has_variants,
+          product.variants,
+        ),
+      })),
       meta: {
         total,
         page,
@@ -119,7 +134,8 @@ export class StorefrontProductService {
         store_id: storeId,
         slug,
         is_published: true,
-        status: "ACTIVE",
+        status: "PUBLISHED",
+        AND: [storefrontPurchasableProductWhere],
       },
       include: {
         categories: {
@@ -152,13 +168,20 @@ export class StorefrontProductService {
     if (!product) {
       throw AppError.notFound("Product not found");
     }
+    const visibleProduct = {
+      ...product,
+      variants: getStorefrontVisibleVariants(
+        product.has_variants,
+        product.variants,
+      ),
+    };
 
-    return product;
+    return visibleProduct;
   }
 
   /**
    * Searches products by case-insensitive partial match on name, description, and variant SKU.
-   * Only returns published + active products. Paginated results.
+   * Only returns published products. Paginated results.
    * Requirements: 5.7
    */
   async searchProducts(
@@ -173,14 +196,19 @@ export class StorefrontProductService {
     const where: any = {
       store_id: storeId,
       is_published: true,
-      status: "ACTIVE",
-      OR: [
-        { name: { contains: query, mode: "insensitive" } },
-        { description: { contains: query, mode: "insensitive" } },
+      status: "PUBLISHED",
+      AND: [
+        storefrontPurchasableProductWhere,
         {
-          variants: {
-            some: { sku: { contains: query, mode: "insensitive" } },
-          },
+          OR: [
+            { name: { contains: query, mode: "insensitive" } },
+            { description: { contains: query, mode: "insensitive" } },
+            {
+              variants: {
+                some: { sku: { contains: query, mode: "insensitive" } },
+              },
+            },
+          ],
         },
       ],
     };
@@ -192,8 +220,12 @@ export class StorefrontProductService {
           media: { orderBy: { sort_order: "asc" }, take: 1 },
           variants: {
             where: { is_active: true },
-            take: 1,
             orderBy: { sort_order: "asc" },
+            include: {
+              inventory: {
+                select: { available_quantity: true },
+              },
+            },
           },
           categories: {
             include: {
@@ -209,7 +241,13 @@ export class StorefrontProductService {
     ]);
 
     return {
-      data,
+      data: data.map((product) => ({
+        ...product,
+        variants: getStorefrontVisibleVariants(
+          product.has_variants,
+          product.variants,
+        ),
+      })),
       meta: {
         total,
         page,
