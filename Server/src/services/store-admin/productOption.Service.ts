@@ -2,11 +2,53 @@ import prisma from "../../configs/prisma";
 import { AppError } from "../../utils/AppError";
 import { mapProductOptionToDto } from "../../mappers";
 
+type ProductOptionType = "TEXT" | "COLOR" | "IMAGE";
+
+function normalizeValueMetadata(
+  optionType: ProductOptionType,
+  data: {
+    color_hex?: string | null;
+    image_url?: string | null;
+  },
+) {
+  if (optionType === "COLOR") {
+    return {
+      color_hex: data.color_hex ?? null,
+      image_url: null,
+    };
+  }
+
+  if (optionType === "IMAGE") {
+    return {
+      color_hex: null,
+      image_url: data.image_url ?? null,
+    };
+  }
+
+  return {
+    color_hex: null,
+    image_url: null,
+  };
+}
+
+function cleanupMetadataForOptionType(optionType: ProductOptionType) {
+  if (optionType === "COLOR") {
+    return { image_url: null };
+  }
+
+  if (optionType === "IMAGE") {
+    return { color_hex: null };
+  }
+
+  return { color_hex: null, image_url: null };
+}
+
 /**
  * Input for creating a product option.
  */
 interface CreateOptionInput {
   name: string;
+  type?: ProductOptionType;
   position?: number;
 }
 
@@ -15,6 +57,7 @@ interface CreateOptionInput {
  */
 interface UpdateOptionInput {
   name?: string;
+  type?: ProductOptionType;
   position?: number;
 }
 
@@ -23,6 +66,8 @@ interface UpdateOptionInput {
  */
 interface CreateOptionValueInput {
   value: string;
+  color_hex?: string | null;
+  image_url?: string | null;
   position?: number;
 }
 
@@ -31,6 +76,8 @@ interface CreateOptionValueInput {
  */
 interface UpdateOptionValueInput {
   value?: string;
+  color_hex?: string | null;
+  image_url?: string | null;
   position?: number;
 }
 
@@ -87,7 +134,7 @@ export class ProductOptionService {
    * and sets position to max+1 if not provided.
    */
   async create(storeId: number, productId: number, data: CreateOptionInput) {
-    const { name, position } = data;
+    const { name, type = "TEXT", position } = data;
 
     // Validate product exists in store
     const product = await prisma.product.findFirst({
@@ -126,6 +173,7 @@ export class ProductOptionService {
         store_id: storeId,
         product_id: productId,
         name,
+        type,
         position: finalPosition,
       },
       include: {
@@ -182,13 +230,34 @@ export class ProductOptionService {
       updateData.position = data.position;
     }
 
-    const updated = await prisma.productOption.update({
-      where: { id_store_id: { id: optionId, store_id: storeId } },
-      data: updateData,
-      include: {
-        values: { orderBy: { position: "asc" } },
-      },
+    if (data.type !== undefined && data.type !== option.type) {
+      updateData.type = data.type;
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.productOption.update({
+        where: { id_store_id: { id: optionId, store_id: storeId } },
+        data: updateData,
+      });
+
+      if (data.type !== undefined && data.type !== option.type) {
+        await tx.productOptionValue.updateMany({
+          where: { option_id: optionId, store_id: storeId },
+          data: cleanupMetadataForOptionType(data.type),
+        });
+      }
+
+      return tx.productOption.findUnique({
+        where: { id_store_id: { id: optionId, store_id: storeId } },
+        include: {
+          values: { orderBy: { position: "asc" } },
+        },
+      });
     });
+
+    if (!updated) {
+      throw AppError.notFound("Product option not found");
+    }
 
     return mapProductOptionToDto(updated);
   }
@@ -261,6 +330,7 @@ export class ProductOptionService {
         store_id: storeId,
         option_id: optionId,
         value,
+        ...normalizeValueMetadata(option.type as ProductOptionType, data),
         position: finalPosition,
       },
     });
@@ -320,6 +390,16 @@ export class ProductOptionService {
 
     if (data.position !== undefined) {
       updateData.position = data.position;
+    }
+
+    if (data.color_hex !== undefined) {
+      updateData.color_hex =
+        option.type === "COLOR" ? data.color_hex : null;
+    }
+
+    if (data.image_url !== undefined) {
+      updateData.image_url =
+        option.type === "IMAGE" ? data.image_url : null;
     }
 
     await prisma.productOptionValue.update({

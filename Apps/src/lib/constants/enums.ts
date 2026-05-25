@@ -40,7 +40,7 @@ export type PaymentStatus =
 
 export const PRODUCT_STATUS = {
   DRAFT: "DRAFT",
-  PENDING_REVIEW: "PENDING_REVIEW",
+  HIDDEN: "HIDDEN",
   PUBLISHED: "PUBLISHED",
   ARCHIVED: "ARCHIVED",
 } as const;
@@ -143,9 +143,9 @@ export const PRODUCT_STATUS_LABELS: Record<
   { ar: string; en: string }
 > = {
   [PRODUCT_STATUS.DRAFT]: { ar: "مسودة", en: "Draft" },
-  [PRODUCT_STATUS.PENDING_REVIEW]: {
-    ar: "بانتظار المراجعة",
-    en: "Pending Review",
+  [PRODUCT_STATUS.HIDDEN]: {
+    ar: "مخفي",
+    en: "Hidden",
   },
   [PRODUCT_STATUS.PUBLISHED]: { ar: "منشور", en: "Published" },
   [PRODUCT_STATUS.ARCHIVED]: { ar: "محذوف", en: "Removed" },

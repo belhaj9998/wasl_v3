@@ -39,8 +39,7 @@ export class StorefrontCustomerAuthService {
     const customer = await prisma.customer.create({
       data: {
         store_id: storeId,
-        first_name: input.first_name,
-        last_name: input.last_name ?? null,
+        customer_name: input.customer_name,
         phone: input.phone,
         password_hash: passwordHash,
         status: "ACTIVE",

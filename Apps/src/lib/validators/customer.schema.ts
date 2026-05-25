@@ -7,14 +7,10 @@ import { z } from "zod";
 
 export const customerSchema = z
   .object({
-    first_name: z
+    customer_name: z
       .string()
       .min(1, "First name must be at least 1 character")
       .max(100, "First name must not exceed 100 characters")
-      .optional(),
-    last_name: z
-      .string()
-      .max(100, "Last name must not exceed 100 characters")
       .optional(),
     email: z
       .string()

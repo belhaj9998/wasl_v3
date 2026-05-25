@@ -287,12 +287,10 @@ const demoCoupons = [
     is_active: true,
   },
 ];
-
 const demoCustomers = [
   {
     storeDomain: "elegance-store",
-    first_name: "محمد",
-    last_name: "العلي",
+    customer_name: "محمد العلي",
     email: "mohammed@customer.com",
     phone: "+218920000001",
     password: "Customer1!",
@@ -300,8 +298,7 @@ const demoCustomers = [
   },
   {
     storeDomain: "elegance-store",
-    first_name: "فاطمة",
-    last_name: "الزهراء",
+    customer_name: "فاطمة الزهراء",
     email: "fatima@customer.com",
     phone: "+218920000002",
     password: "Customer2!",
@@ -309,8 +306,7 @@ const demoCustomers = [
   },
   {
     storeDomain: "tech-store",
-    first_name: "علي",
-    last_name: "حسن",
+    customer_name: "علي حسن",
     email: "ali@customer.com",
     phone: "+218920000003",
     password: "Customer3!",
@@ -685,8 +681,7 @@ async function seedCustomers(stores: any[]) {
       update: {},
       create: {
         store_id: store.id,
-        first_name: custData.first_name,
-        last_name: custData.last_name,
+        customer_name: custData.customer_name,
         phone: custData.phone,
         password_hash: hashedPassword,
         status: custData.status,
@@ -699,7 +694,7 @@ async function seedCustomers(stores: any[]) {
         store_id: store.id,
         customer_id: customer.id,
         type: "SHIPPING",
-        full_name: `${custData.first_name} ${custData.last_name}`,
+        full_name: custData.customer_name,
         phone: custData.phone,
         city: "طرابلس",
         region: "طرابلس",

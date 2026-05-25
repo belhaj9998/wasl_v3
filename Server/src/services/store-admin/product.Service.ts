@@ -3,7 +3,7 @@ import { AppError } from "../../utils/AppError";
 import { slugify } from "../../utils/slugify";
 import { mapProductToDto } from "../../mappers";
 
-type ProductStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "ARCHIVED";
+type ProductStatus = "DRAFT" | "HIDDEN" | "PUBLISHED" | "ARCHIVED";
 
 /**
  * Parameters for listing products with pagination, filtering, and sorting.
@@ -50,6 +50,7 @@ interface UpdateProductInput {
   compare_at_price?: number | null;
   cost_price?: number | null;
   track_inventory?: boolean;
+  has_variants?: boolean;
   category_ids?: number[];
 }
 
@@ -135,6 +136,7 @@ export class ProductService {
       prisma.product.findMany({
         where,
         include: {
+          categories: { include: { category: true } },
           media: { orderBy: { sort_order: "asc" }, take: 1 },
           variants: {
             where: { is_active: true },
@@ -379,6 +381,10 @@ export class ProductService {
       updateData.track_inventory = data.track_inventory;
     }
 
+    if (data.has_variants !== undefined) {
+      updateData.has_variants = data.has_variants;
+    }
+
     // Validate compare_at_price > base_price if both are relevant
     const effectiveBasePrice = data.base_price ?? product.base_price;
     const effectiveComparePrice =
@@ -417,6 +423,49 @@ export class ProductService {
         where: { id_store_id: { id: productId, store_id: storeId } },
         data: updateData,
       });
+
+      if (data.has_variants === false) {
+        const defaultVariant = await tx.productVariant.findFirst({
+          where: {
+            store_id: storeId,
+            product_id: productId,
+            is_default: true,
+          },
+          select: { id: true },
+        });
+
+        if (!defaultVariant) {
+          const variantSku = await this.ensureUniqueSku(
+            tx,
+            storeId,
+            updateData.slug || product.slug,
+          );
+
+          const variant = await tx.productVariant.create({
+            data: {
+              store_id: storeId,
+              product_id: productId,
+              title: "Default",
+              sku: variantSku,
+              price: null,
+              is_default: true,
+              is_active: true,
+              sort_order: 0,
+            },
+          });
+
+          await tx.inventory.create({
+            data: {
+              store_id: storeId,
+              variant_id: variant.id,
+              total_quantity: 0,
+              available_quantity: 0,
+              reserved_quantity: 0,
+              low_stock_threshold: 5,
+            },
+          });
+        }
+      }
 
       // Replace category links if category_ids provided
       if (data.category_ids !== undefined) {
@@ -666,6 +715,7 @@ export class ProductService {
             store_id: storeId,
             product_id: newProduct.id,
             name: option.name,
+            type: option.type,
             position: option.position,
           },
         });
@@ -676,6 +726,8 @@ export class ProductService {
               store_id: storeId,
               option_id: newOption.id,
               value: value.value,
+              color_hex: value.color_hex,
+              image_url: value.image_url,
               position: value.position,
             },
           });

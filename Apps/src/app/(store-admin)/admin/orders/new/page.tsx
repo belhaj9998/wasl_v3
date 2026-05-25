@@ -190,7 +190,7 @@ export default function NewOrderPage() {
     setCustomerSearch("");
 
     // Pre-fill form fields from customer data
-    const fullName = [customer.first_name, customer.last_name]
+    const fullName = [customer.customer_name]
       .filter(Boolean)
       .join(" ");
     setValue("customer_name", fullName);
@@ -424,7 +424,7 @@ export default function NewOrderPage() {
               <div className="flex items-center justify-between rounded-lg border bg-muted/50 p-4">
                 <div>
                   <p className="font-medium">
-                    {selectedCustomer.first_name} {selectedCustomer.last_name}
+                    {selectedCustomer.customer_name}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {selectedCustomer.email}
@@ -486,7 +486,7 @@ export default function NewOrderPage() {
                         tabIndex={0}
                       >
                         <p className="font-medium">
-                          {customer.first_name} {customer.last_name}
+                          {customer.customer_name}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {customer.email}

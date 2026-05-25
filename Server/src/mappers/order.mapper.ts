@@ -5,8 +5,8 @@ function actorName(actor: RawRecord | null | undefined): string | null {
     return null;
   }
 
-  const name = [actor.first_name, actor.last_name].filter(Boolean).join(" ");
-  return name || null;
+  const name = [actor.customer_name, actor.last_name].filter(Boolean).join(" ");
+  return actor.customer_name ? String(actor.customer_name) : null;
 }
 
 function mapCustomer(customer: RawRecord | null | undefined) {
@@ -16,8 +16,7 @@ function mapCustomer(customer: RawRecord | null | undefined) {
 
   return {
     id: customer.id,
-    first_name: customer.first_name ?? null,
-    last_name: customer.last_name ?? null,
+    customer_name: customer.customer_name ?? null,
     phone: customer.phone ?? null,
   };
 }

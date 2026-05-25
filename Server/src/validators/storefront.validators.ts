@@ -75,8 +75,7 @@ export const checkoutSchema = z.object({
  * Requirements: 14.3, 11.10
  */
 export const customerRegisterSchema = z.object({
-  first_name: z.string().min(1).max(100),
-  last_name: z.string().min(1).max(100).optional(),
+  customer_name: z.string().min(1).max(100),
   phone: z.string().min(8).max(20),
   password: z.string().min(8).max(128),
 });
@@ -97,8 +96,7 @@ export const customerLoginSchema = z.object({
  * Requirements: 14.1
  */
 export const updateProfileSchema = z.object({
-  first_name: z.string().min(1).max(100).optional(),
-  last_name: z.string().min(1).max(100).optional(),
+  customer_name: z.string().min(1).max(100).optional(),
   phone: z.string().min(8).max(20).optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
   birth_date: z.coerce.date().optional(),

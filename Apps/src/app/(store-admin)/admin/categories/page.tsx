@@ -14,15 +14,18 @@ import { useForm } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
-  ChevronLeft,
   FolderTree,
+  FolderPlus,
   Plus,
   Pencil,
   Trash2,
   GripVertical,
   Loader2,
+  MoreVertical,
+  Search,
+  ListChecks,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
@@ -35,6 +38,7 @@ import {
   deleteCategory,
   reorderCategories,
 } from "@/lib/store/slices/categories.thunks";
+import { invalidateCategoriesListCache } from "@/lib/store/slices/categories.slice";
 import { useStore } from "@/hooks/useStore";
 import { buildCategoryTree } from "@/lib/utils/permissions";
 import { categorySchema } from "@/lib/validators/category.schema";
@@ -48,6 +52,14 @@ import { FormField } from "@/components/forms/FormField";
 import { FormSummaryError } from "@/components/forms/FormSummaryError";
 import { SubmitButton } from "@/components/forms/SubmitButton";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -56,12 +68,23 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label as UILabel } from "@/components/ui/label";
 import { cn } from "@/lib/utils/cn";
+import { ROUTES } from "@/lib/constants/routes";
 
 import type { Category } from "@/types";
+
+type CategoryStatusFilter = "all" | "published" | "hidden";
+
+const CATEGORY_LIST_PARAMS = { limit: 200 };
+
+interface CategoryRow {
+  category: Category;
+  level: number;
+  index: number;
+  parentId: number | null;
+}
 
 // ─── Form Schema ─────────────────────────────────────────────────────────────
 // Uses string for parent_id since select fields pass string values
@@ -82,6 +105,7 @@ interface CategoryFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category?: Category | null;
+  initialParentId?: number | null;
   parentCategories: Category[];
   onSubmit: (data: CategoryFormValues) => Promise<void>;
 }
@@ -92,6 +116,7 @@ function CategoryFormDialog({
   open,
   onOpenChange,
   category,
+  initialParentId,
   parentCategories,
   onSubmit,
 }: CategoryFormDialogProps) {
@@ -135,14 +160,14 @@ function CategoryFormDialog({
           name: "",
           slug: "",
           description: null,
-          parent_id: null,
+          parent_id: initialParentId ? String(initialParentId) : null,
           image_url: null,
           is_active: true,
         });
       }
       setServerErrors([]);
     }
-  }, [open, category, reset]);
+  }, [open, category, initialParentId, reset]);
 
   const handleFormSubmit = async (data: CategoryFormValues) => {
     setServerErrors([]);
@@ -305,15 +330,15 @@ function CategoryFormDialog({
   );
 }
 
-// ─── Category Tree Node ──────────────────────────────────────────────────────
+// ─── Category Row ────────────────────────────────────────────────────────────
 
-interface CategoryTreeNodeProps {
-  category: Category;
-  level: number;
-  expanded: Set<number>;
-  onToggle: (id: number) => void;
+interface CategoryTableRowProps extends CategoryRow {
+  dragOverId: number | null;
+  onAddChild: (category: Category) => void;
   onEdit: (category: Category) => void;
   onDelete: (category: Category) => void;
+  onManageProducts: (category: Category) => void;
+  onToggleActive: (category: Category, isActive: boolean) => void;
   onDragStart: (
     category: Category,
     index: number,
@@ -326,146 +351,117 @@ interface CategoryTreeNodeProps {
     parentId: number | null,
   ) => void;
   onDrop: (e: React.DragEvent) => void;
-  index: number;
-  parentId: number | null;
-  dragOverId: number | null;
 }
 
-function CategoryTreeNode({
+function CategoryTableRow({
   category,
   level,
-  expanded,
-  onToggle,
-  onEdit,
-  onDelete,
-  onDragStart,
-  onDragOver,
-  onDrop,
   index,
   parentId,
   dragOverId,
-}: CategoryTreeNodeProps) {
-  const t = useTranslations("categories");
-  const tCommon = useTranslations("common");
-  const hasChildren = category.children && category.children.length > 0;
-  const isExpanded = expanded.has(category.id);
-  const isMaxDepth = level >= 3;
+  onAddChild,
+  onEdit,
+  onDelete,
+  onManageProducts,
+  onToggleActive,
+  onDragStart,
+  onDragOver,
+  onDrop,
+}: CategoryTableRowProps) {
   const isDragOver = dragOverId === category.id;
 
   return (
-    <div>
+    <div
+      className={cn(
+        "grid grid-cols-[minmax(0,1fr)_120px_130px_48px] items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-colors",
+        "hover:border-primary/35 hover:bg-accent/30",
+        isDragOver && "border-primary bg-primary/5",
+      )}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        onDragStart(category, index, parentId);
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        onDragOver(e, category, index, parentId);
+      }}
+      onDrop={onDrop}
+    >
       <div
-        className={cn(
-          "flex items-center gap-2 rounded-md border px-3 py-2 transition-colors",
-          "hover:bg-accent/50",
-          isDragOver && "border-primary bg-primary/5",
-        )}
-        style={{ marginInlineStart: `${level * 24}px` }}
-        draggable
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = "move";
-          onDragStart(category, index, parentId);
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          onDragOver(e, category, index, parentId);
-        }}
-        onDrop={onDrop}
+        className="flex min-w-0 items-center gap-2"
+        style={{ paddingInlineStart: `${level * 24}px` }}
       >
-        {/* Drag handle */}
         <PermissionGate permission="categories.manage">
-          <GripVertical className="h-4 w-4 cursor-grab text-muted-foreground shrink-0" />
+          <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground" />
         </PermissionGate>
 
-        {/* Expand/collapse toggle */}
-        {hasChildren && !isMaxDepth ? (
-          <button
-            onClick={() => onToggle(category.id)}
-            className="shrink-0 rounded p-0.5 hover:bg-muted"
-            aria-label={isExpanded ? t("collapse") : t("expand")}
-          >
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronLeft className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        ) : (
-          <span className="w-5 shrink-0" />
-        )}
-
-        {/* Category info */}
-        <div className="flex-1 min-w-0">
-          <span className="font-medium text-sm truncate block">
-            {category.name}
-          </span>
-        </div>
-
-        {/* Status badge */}
-        {!category.is_active && (
-          <Badge variant="secondary" className="text-xs shrink-0">
-            غير نشط
-          </Badge>
-        )}
-
-        {/* Product count */}
-        {category.product_count !== undefined && (
-          <span className="text-xs text-muted-foreground shrink-0">
-            {category.product_count} منتج
-          </span>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
-          <PermissionGate permission="categories.manage">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => onEdit(category)}
-              aria-label={tCommon("edit")}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          </PermissionGate>
-
-          <PermissionGate permission="categories.manage">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-destructive hover:text-destructive"
-              onClick={() => onDelete(category)}
-              aria-label={tCommon("delete")}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </PermissionGate>
-        </div>
+        <button
+          type="button"
+          onClick={() => onManageProducts(category)}
+          className="min-w-0 truncate text-start text-sm font-semibold hover:text-primary"
+          title={category.name}
+        >
+          {category.name}
+        </button>
       </div>
 
-      {/* Children */}
-      {hasChildren && isExpanded && !isMaxDepth && (
-        <div className="mt-1 space-y-1">
-          {category.children!.map((child, childIndex) => (
-            <CategoryTreeNode
-              key={child.id}
-              category={child}
-              level={level + 1}
-              expanded={expanded}
-              onToggle={onToggle}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onDragStart={onDragStart}
-              onDragOver={onDragOver}
-              onDrop={onDrop}
-              index={childIndex}
-              parentId={category.id}
-              dragOverId={dragOverId}
-            />
-          ))}
+      <button
+        type="button"
+        onClick={() => onManageProducts(category)}
+        className="text-center text-sm font-semibold tabular-nums text-foreground hover:text-primary"
+        aria-label={`إدارة منتجات ${category.name}`}
+      >
+        {category.product_count ?? 0}
+      </button>
+
+      <PermissionGate permission="categories.manage">
+        <div className="flex items-center justify-center">
+          <Switch
+            checked={category.is_active}
+            onCheckedChange={(checked) => onToggleActive(category, checked)}
+            aria-label={category.is_active ? "إخفاء التصنيف" : "إظهار التصنيف"}
+          />
         </div>
-      )}
+      </PermissionGate>
+
+      <PermissionGate permission="categories.manage">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              aria-label="خيارات التصنيف"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-52">
+            <DropdownMenuItem onClick={() => onAddChild(category)}>
+              <FolderPlus className="me-2 h-4 w-4" />
+              إضافة تصنيف فرعي
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onEdit(category)}>
+              <Pencil className="me-2 h-4 w-4" />
+              تعديل المعلومات
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onManageProducts(category)}>
+              <ListChecks className="me-2 h-4 w-4" />
+              إدارة منتجات الفئة
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onDelete(category)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="me-2 h-4 w-4" />
+              حذف التصنيف
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </PermissionGate>
     </div>
   );
 }
@@ -491,6 +487,7 @@ function CategoryTreeSkeleton() {
 // ─── Main Page Component ─────────────────────────────────────────────────────
 
 export default function CategoriesPage() {
+  const router = useRouter();
   const dispatch = useAppDispatch();
   const { currentStoreId } = useStore();
   const t = useTranslations("categories");
@@ -509,14 +506,65 @@ export default function CategoriesPage() {
     [flatCategories],
   );
 
-  // Expand/collapse state
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const categoryRows = useMemo(() => {
+    const rows: CategoryRow[] = [];
+
+    const flatten = (
+      categories: Category[],
+      parentId: number | null = null,
+      level: number = 0,
+    ) => {
+      categories.forEach((category, index) => {
+        rows.push({ category, level, index, parentId });
+        if (category.children && category.children.length > 0) {
+          flatten(category.children, category.id, level + 1);
+        }
+      });
+    };
+
+    flatten(categoryTree);
+    return rows;
+  }, [categoryTree]);
+
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<CategoryStatusFilter>("all");
+
+  const visibleCategoryRows = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return categoryRows.filter(({ category }) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        category.name.toLowerCase().includes(normalizedSearch) ||
+        category.slug.toLowerCase().includes(normalizedSearch);
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "published" && category.is_active) ||
+        (statusFilter === "hidden" && !category.is_active);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [categoryRows, search, statusFilter]);
+
+  const statusCounts = useMemo(
+    () => ({
+      all: categoryRows.length,
+      published: categoryRows.filter(({ category }) => category.is_active)
+        .length,
+      hidden: categoryRows.filter(({ category }) => !category.is_active)
+        .length,
+    }),
+    [categoryRows],
+  );
 
   // Dialog states
   const [formDialog, setFormDialog] = useState<{
     open: boolean;
     category: Category | null;
-  }>({ open: false, category: null });
+    parentId: number | null;
+  }>({ open: false, category: null, parentId: null });
 
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
@@ -536,30 +584,15 @@ export default function CategoriesPage() {
   // Fetch categories on mount
   useEffect(() => {
     if (currentStoreId) {
-      dispatch(fetchCategories({ storeId: currentStoreId }));
+      dispatch(invalidateCategoriesListCache());
+      dispatch(
+        fetchCategories({
+          storeId: currentStoreId,
+          params: CATEGORY_LIST_PARAMS,
+        }),
+      );
     }
   }, [dispatch, currentStoreId]);
-
-  // Expand all root categories by default
-  useEffect(() => {
-    if (categoryTree.length > 0 && expanded.size === 0) {
-      const rootIds = new Set(categoryTree.map((c) => c.id));
-      setExpanded(rootIds);
-    }
-  }, [categoryTree, expanded.size]);
-
-  // Toggle expand/collapse
-  const handleToggle = useCallback((id: number) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
 
   // Create category
   const handleCreate = useCallback(
@@ -580,7 +613,12 @@ export default function CategoriesPage() {
       ).unwrap();
       toast.success(tSuccess("crud.created"));
       // Refetch to get updated tree
-      dispatch(fetchCategories({ storeId: currentStoreId }));
+      dispatch(
+        fetchCategories({
+          storeId: currentStoreId,
+          params: CATEGORY_LIST_PARAMS,
+        }),
+      );
     },
     [dispatch, currentStoreId],
   );
@@ -608,9 +646,43 @@ export default function CategoriesPage() {
       ).unwrap();
       toast.success(tSuccess("crud.updated"));
       // Refetch to get updated tree
-      dispatch(fetchCategories({ storeId: currentStoreId }));
+      dispatch(
+        fetchCategories({
+          storeId: currentStoreId,
+          params: CATEGORY_LIST_PARAMS,
+        }),
+      );
     },
     [dispatch, currentStoreId, formDialog.category],
+  );
+
+  const handleToggleActive = useCallback(
+    async (category: Category, isActive: boolean) => {
+      if (!currentStoreId) return;
+
+      try {
+        await dispatch(
+          updateCategory({
+            storeId: currentStoreId,
+            categoryId: category.id,
+            payload: { is_active: isActive },
+          }),
+        ).unwrap();
+        toast.success(isActive ? "تم إظهار التصنيف" : "تم إخفاء التصنيف");
+      } catch (err: unknown) {
+        const message =
+          typeof err === "string" ? err : "تعذر تحديث حالة التصنيف";
+        toast.error(message);
+      }
+    },
+    [dispatch, currentStoreId],
+  );
+
+  const handleManageProducts = useCallback(
+    (category: Category) => {
+      router.push(`${ROUTES.STORE_ADMIN.PRODUCTS}?category_id=${category.id}`);
+    },
+    [router],
   );
 
   // Delete category
@@ -627,7 +699,12 @@ export default function CategoriesPage() {
       ).unwrap();
       toast.success(tSuccess("crud.deleted"));
       // Refetch to get updated tree (children reassigned by backend)
-      dispatch(fetchCategories({ storeId: currentStoreId }));
+      dispatch(
+        fetchCategories({
+          storeId: currentStoreId,
+          params: CATEGORY_LIST_PARAMS,
+        }),
+      );
     } catch (err: unknown) {
       const message = typeof err === "string" ? err : t("deleteFailed");
       toast.error(message);
@@ -737,7 +814,12 @@ export default function CategoriesPage() {
         .unwrap()
         .then(() => {
           toast.success(tSuccess("category.reordered"));
-          dispatch(fetchCategories({ storeId: currentStoreId }));
+          dispatch(
+            fetchCategories({
+              storeId: currentStoreId,
+              params: CATEGORY_LIST_PARAMS,
+            }),
+          );
         })
         .catch((err: unknown) => {
           // Handle invalid category IDs in reorder (Requirement 8.5)
@@ -753,21 +835,32 @@ export default function CategoriesPage() {
   // Handle retry on error
   const handleRetry = useCallback(() => {
     if (currentStoreId) {
-      dispatch(fetchCategories({ storeId: currentStoreId }));
+      dispatch(
+        fetchCategories({
+          storeId: currentStoreId,
+          params: CATEGORY_LIST_PARAMS,
+        }),
+      );
     }
   }, [dispatch, currentStoreId]);
 
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">الفئات</h2>
-          <p className="text-muted-foreground">إدارة فئات المنتجات بشكل هرمي</p>
+          <p className="text-muted-foreground">
+            إدارة ظهور الفئات وربطها بمنتجات المتجر
+          </p>
         </div>
 
         <PermissionGate permission="categories.manage">
-          <Button onClick={() => setFormDialog({ open: true, category: null })}>
+          <Button
+            onClick={() =>
+              setFormDialog({ open: true, category: null, parentId: null })
+            }
+          >
             <Plus className="me-2 h-4 w-4" />
             إضافة فئة
           </Button>
@@ -790,30 +883,99 @@ export default function CategoriesPage() {
           message={t("noCategories")}
         />
       ) : (
-        <div
-          className="space-y-1"
-          onDragEnd={() => {
-            setDragSource(null);
-            setDragOverId(null);
-          }}
-        >
-          {categoryTree.map((category, index) => (
-            <CategoryTreeNode
-              key={category.id}
-              category={category}
-              level={0}
-              expanded={expanded}
-              onToggle={handleToggle}
-              onEdit={(cat) => setFormDialog({ open: true, category: cat })}
-              onDelete={(cat) => setDeleteDialog({ open: true, category: cat })}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              index={index}
-              parentId={null}
-              dragOverId={dragOverId}
-            />
-          ))}
+        <div className="rounded-xl border bg-background p-4 shadow-sm">
+          <div className="mb-5 flex flex-col gap-4 lg:flex-row-reverse lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  ["all", "الكل", statusCounts.all],
+                  ["published", "منشور", statusCounts.published],
+                  ["hidden", "مخفي", statusCounts.hidden],
+                ] as const
+              ).map(([value, label, count]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStatusFilter(value)}
+                  className={cn(
+                    "inline-flex min-w-24 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors",
+                    statusFilter === value
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground",
+                  )}
+                >
+                  <span>{label}</span>
+                  <span className="rounded-full bg-background/70 px-2 py-0.5 text-xs text-foreground">
+                    {count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full max-w-md">
+              <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="بحث"
+                className="h-11 rounded-full pe-10 text-end"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_130px_48px] rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+            <span className="text-start">اسم التصنيف</span>
+            <span className="text-center">عدد المنتجات</span>
+            <span className="text-center">الحالة</span>
+            <span />
+          </div>
+
+          <div
+            className="mt-3 space-y-2"
+            onDragEnd={() => {
+              setDragSource(null);
+              setDragOverId(null);
+            }}
+          >
+            {visibleCategoryRows.length === 0 ? (
+              <div className="rounded-lg border border-dashed py-12 text-center text-sm text-muted-foreground">
+                لا توجد فئات مطابقة للبحث أو الفلتر.
+              </div>
+            ) : (
+              visibleCategoryRows.map(({ category, level, index, parentId }) => (
+                <CategoryTableRow
+                  key={category.id}
+                  category={category}
+                  level={level}
+                  index={index}
+                  parentId={parentId}
+                  dragOverId={dragOverId}
+                  onAddChild={(cat) =>
+                    setFormDialog({
+                      open: true,
+                      category: null,
+                      parentId: cat.id,
+                    })
+                  }
+                  onEdit={(cat) =>
+                    setFormDialog({
+                      open: true,
+                      category: cat,
+                      parentId: null,
+                    })
+                  }
+                  onDelete={(cat) =>
+                    setDeleteDialog({ open: true, category: cat })
+                  }
+                  onManageProducts={handleManageProducts}
+                  onToggleActive={handleToggleActive}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                />
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -831,9 +993,12 @@ export default function CategoriesPage() {
       <CategoryFormDialog
         open={formDialog.open}
         onOpenChange={(open) => {
-          if (!open) setFormDialog({ open: false, category: null });
+          if (!open) {
+            setFormDialog({ open: false, category: null, parentId: null });
+          }
         }}
         category={formDialog.category}
+        initialParentId={formDialog.parentId}
         parentCategories={categoryTree}
         onSubmit={formDialog.category ? handleUpdate : handleCreate}
       />

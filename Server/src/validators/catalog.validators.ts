@@ -89,7 +89,7 @@ export const createProductSchema = z
     track_inventory: z.boolean().optional().default(true),
     has_variants: z.boolean().optional().default(false),
     status: z
-      .enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED"])
+      .enum(["DRAFT", "HIDDEN", "PUBLISHED"])
       .optional()
       .default("DRAFT"),
     category_ids: z.array(z.number().int().positive()).optional().default([]),
@@ -126,6 +126,7 @@ export const updateProductSchema = z
     compare_at_price: optionalPositiveMoneySchema,
     cost_price: optionalNonNegativeMoneySchema,
     track_inventory: z.boolean().optional(),
+    has_variants: z.boolean().optional(),
     category_ids: z.array(z.number().int().positive()).optional(),
   })
   .superRefine((data, ctx) => {
@@ -149,7 +150,7 @@ export const updateProductSchema = z
  * Validates: Requirements 12.2
  */
 export const updateProductStatusSchema = z.object({
-  status: z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "HIDDEN", "PUBLISHED", "ARCHIVED"]),
 });
 
 /**
@@ -169,7 +170,7 @@ export const publishProductSchema = z.object({
 export const productListQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
-  status: z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"]).optional(),
+  status: z.enum(["DRAFT", "HIDDEN", "PUBLISHED", "ARCHIVED"]).optional(),
   category_id: z.coerce.number().int().positive().optional(),
   min_price: z.coerce.number().min(0).optional(),
   max_price: z.coerce.number().min(0).optional(),
@@ -184,13 +185,28 @@ export const productListQuerySchema = z.object({
 
 // ─── Product Option Schemas ──────────────────────────────────────────────────
 
+const optionTypeSchema = z.enum(["TEXT", "COLOR", "IMAGE"]);
+const optionValueColorSchema = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z
+    .string()
+    .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+    .nullable()
+    .optional(),
+);
+const optionValueImageSchema = z.preprocess(
+  (value) => (value === "" ? null : value),
+  z.string().max(2048).nullable().optional(),
+);
+
 /**
  * Create product option request body schema.
- * Requires name (1-50 chars), optional position.
+ * Requires name (1-50 chars), optional type and position.
  * Validates: Requirements 16.2
  */
 export const createOptionSchema = z.object({
   name: z.string().min(1).max(50),
+  type: optionTypeSchema.optional().default("TEXT"),
   position: z.number().int().min(0).optional(),
 });
 
@@ -201,16 +217,19 @@ export const createOptionSchema = z.object({
  */
 export const updateOptionSchema = z.object({
   name: z.string().min(1).max(50).optional(),
+  type: optionTypeSchema.optional(),
   position: z.number().int().min(0).optional(),
 });
 
 /**
  * Create option value request body schema.
- * Requires value (1-100 chars), optional position.
+ * Requires value (1-100 chars), optional color/image metadata and position.
  * Validates: Requirements 19.2
  */
 export const createOptionValueSchema = z.object({
   value: z.string().min(1).max(100),
+  color_hex: optionValueColorSchema,
+  image_url: optionValueImageSchema,
   position: z.number().int().min(0).optional(),
 });
 
@@ -221,6 +240,8 @@ export const createOptionValueSchema = z.object({
  */
 export const updateOptionValueSchema = z.object({
   value: z.string().min(1).max(100).optional(),
+  color_hex: optionValueColorSchema,
+  image_url: optionValueImageSchema,
   position: z.number().int().min(0).optional(),
 });
 
@@ -307,6 +328,12 @@ export const adjustInventorySchema = z.object({
   reason: z.string().max(500).optional(),
   reference_type: z.string().max(50).optional(),
   reference_id: z.number().int().positive().optional(),
+});
+
+export const updateInventorySchema = z.object({
+  available_quantity: z.number().int().min(0).optional(),
+  low_stock_threshold: z.number().int().min(0).optional(),
+  reason: z.string().max(500).optional(),
 });
 
 /**

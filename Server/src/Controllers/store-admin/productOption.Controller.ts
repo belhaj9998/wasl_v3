@@ -29,10 +29,11 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
 export const create = asyncHandler(async (req: AppRequest, res: Response) => {
   const storeId = req.storeId!;
   const productId = parseInt(req.params.productId as string, 10);
-  const { name, position } = req.body;
+  const { name, type, position } = req.body;
 
   const option = await productOptionService.create(storeId, productId, {
     name,
+    type,
     position,
   });
 
@@ -47,13 +48,13 @@ export const update = asyncHandler(async (req: AppRequest, res: Response) => {
   const storeId = req.storeId!;
   const productId = parseInt(req.params.productId as string, 10);
   const optionId = parseInt(req.params.optionId as string, 10);
-  const { name, position } = req.body;
+  const { name, type, position } = req.body;
 
   const option = await productOptionService.update(
     storeId,
     productId,
     optionId,
-    { name, position },
+    { name, type, position },
   );
 
   sendSuccess(res, { option }, "Product option updated");
@@ -81,13 +82,13 @@ export const addValue = asyncHandler(async (req: AppRequest, res: Response) => {
   const storeId = req.storeId!;
   const productId = parseInt(req.params.productId as string, 10);
   const optionId = parseInt(req.params.optionId as string, 10);
-  const { value, position } = req.body;
+  const { value, color_hex, image_url, position } = req.body;
 
   const option = await productOptionService.addValue(
     storeId,
     productId,
     optionId,
-    { value, position },
+    { value, color_hex, image_url, position },
   );
 
   sendSuccess(res, { option }, "Option value added", 201);
@@ -103,14 +104,14 @@ export const updateValue = asyncHandler(
     const productId = parseInt(req.params.productId as string, 10);
     const optionId = parseInt(req.params.optionId as string, 10);
     const valueId = parseInt(req.params.valueId as string, 10);
-    const { value, position } = req.body;
+    const { value, color_hex, image_url, position } = req.body;
 
     const option = await productOptionService.updateValue(
       storeId,
       productId,
       optionId,
       valueId,
-      { value, position },
+      { value, color_hex, image_url, position },
     );
 
     sendSuccess(res, { option }, "Option value updated");

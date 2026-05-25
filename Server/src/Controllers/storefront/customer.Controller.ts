@@ -78,8 +78,7 @@ export const getProfile = asyncHandler(
       where: { id: customerId, store_id: storeId },
       select: {
         id: true,
-        first_name: true,
-        last_name: true,
+        customer_name: true,
         phone: true,
         gender: true,
         birth_date: true,
@@ -103,8 +102,6 @@ export const updateProfile = asyncHandler(
     const customerId = req.customer!.customerId;
     const body = updateProfileSchema.parse(req.body);
 
-
-
     if (body.phone) {
       const existingPhone = await prisma.customer.findFirst({
         where: {
@@ -120,8 +117,8 @@ export const updateProfile = asyncHandler(
     }
 
     const updateData: Record<string, unknown> = {};
-    if (body.first_name !== undefined) updateData.first_name = body.first_name;
-    if (body.last_name !== undefined) updateData.last_name = body.last_name;
+    if (body.customer_name !== undefined)
+      updateData.customer_name = body.customer_name;
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.gender !== undefined) updateData.gender = body.gender;
     if (body.birth_date !== undefined) updateData.birth_date = body.birth_date;
@@ -131,8 +128,7 @@ export const updateProfile = asyncHandler(
       data: updateData,
       select: {
         id: true,
-        first_name: true,
-        last_name: true,
+        customer_name: true,
         phone: true,
         gender: true,
         birth_date: true,

@@ -9,7 +9,7 @@ interface CustomerListParams {
   limit?: number;
   search?: string;
   status?: "ACTIVE" | "BLOCKED" | "ARCHIVED";
-  sort_by?: "created_at" | "first_name" | "last_name";
+  sort_by?: "created_at" | "customer_name";
   sort_order?: "asc" | "desc";
 }
 
@@ -17,8 +17,7 @@ interface CustomerListParams {
  * Input for creating a customer.
  */
 interface CreateCustomerInput {
-  first_name?: string;
-  last_name?: string;
+  customer_name?: string;
   email?: string;
   phone?: string;
   gender?: string;
@@ -31,8 +30,7 @@ interface CreateCustomerInput {
  * Input for updating a customer.
  */
 interface UpdateCustomerInput {
-  first_name?: string;
-  last_name?: string;
+  customer_name?: string;
   email?: string | null;
   phone?: string | null;
   gender?: string | null;
@@ -84,8 +82,7 @@ interface PaginationParams {
 const customerSelect = {
   id: true,
   store_id: true,
-  first_name: true,
-  last_name: true,
+  customer_name: true,
   phone: true,
   gender: true,
   birth_date: true,
@@ -122,8 +119,7 @@ export class CustomerService {
 
     if (search) {
       where.OR = [
-        { first_name: { contains: search, mode: "insensitive" } },
-        { last_name: { contains: search, mode: "insensitive" } },
+        { customer_name: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
         { phone: { contains: search, mode: "insensitive" } },
       ];
@@ -131,10 +127,8 @@ export class CustomerService {
 
     // Build orderBy
     const orderBy: any = {};
-    if (sort_by === "first_name") {
-      orderBy.first_name = sort_order;
-    } else if (sort_by === "last_name") {
-      orderBy.last_name = sort_order;
+    if (sort_by === "customer_name") {
+      orderBy.customer_name = sort_order;
     } else {
       orderBy.created_at = sort_order;
     }
@@ -223,8 +217,7 @@ export class CustomerService {
     const customer = await prisma.customer.create({
       data: {
         store_id: storeId,
-        first_name: data.first_name ?? null,
-        last_name: data.last_name ?? null,
+        customer_name: data.customer_name ?? null,
         email: data.email ?? null,
         phone: data.phone ?? null,
         gender: data.gender ?? null,
@@ -288,8 +281,7 @@ export class CustomerService {
     // Build update data — only include fields that are explicitly provided
     const updateData: any = {};
 
-    if (data.first_name !== undefined) updateData.first_name = data.first_name;
-    if (data.last_name !== undefined) updateData.last_name = data.last_name;
+    if (data.customer_name !== undefined) updateData.customer_name = data.customer_name;
     if (data.email !== undefined) updateData.email = data.email;
     if (data.phone !== undefined) updateData.phone = data.phone;
     if (data.gender !== undefined) updateData.gender = data.gender;

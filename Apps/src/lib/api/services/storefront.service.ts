@@ -58,8 +58,7 @@ export interface OrderLookupPayload {
 }
 
 export interface CustomerRegisterPayload {
-  first_name: string;
-  last_name?: string;
+  customer_name: string;
   phone: string;
   password: string;
 }
@@ -70,8 +69,7 @@ export interface CustomerLoginPayload {
 }
 
 export interface UpdateCustomerProfilePayload {
-  first_name?: string;
-  last_name?: string;
+  customer_name?: string;
   phone?: string;
 }
 

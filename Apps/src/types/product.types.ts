@@ -4,9 +4,11 @@
 
 export type ProductStatus =
   | "DRAFT"
-  | "PENDING_REVIEW"
+  | "HIDDEN"
   | "PUBLISHED"
   | "ARCHIVED";
+
+export type ProductOptionType = "TEXT" | "COLOR" | "IMAGE";
 
 export interface Product {
   id: number;
@@ -24,6 +26,7 @@ export interface Product {
   published_at: string | null;
   categories?: Category[];
   media?: ProductMedia[];
+  options?: ProductOption[];
   variants?: ProductVariant[];
   created_at: string;
   updated_at: string;
@@ -46,6 +49,7 @@ export interface ProductVariant {
 export interface ProductOption {
   id: number;
   name: string;
+  type: ProductOptionType;
   position: number;
   values: OptionValue[];
 }
@@ -53,6 +57,8 @@ export interface ProductOption {
 export interface OptionValue {
   id: number;
   value: string;
+  color_hex: string | null;
+  image_url: string | null;
   position: number;
 }
 

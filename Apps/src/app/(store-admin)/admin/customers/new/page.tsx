@@ -32,8 +32,7 @@ export default function NewCustomerPage() {
 
       // Clean up empty strings to undefined
       const payload = {
-        first_name: data.first_name || undefined,
-        last_name: data.last_name || undefined,
+        customer_name: data.customer_name || undefined,
         email: data.email || undefined,
         phone: data.phone || undefined,
         notes: data.notes || undefined,

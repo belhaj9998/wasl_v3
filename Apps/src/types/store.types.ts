@@ -60,8 +60,7 @@ export type CustomerStatus = "ACTIVE" | "BLOCKED" | "ARCHIVED";
 export interface Customer {
   id: number;
   store_id: number;
-  first_name: string;
-  last_name: string | null;
+  customer_name: string;
   email: string;
   phone: string | null;
   status: CustomerStatus;

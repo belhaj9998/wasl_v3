@@ -23,11 +23,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const registerSchema = z.object({
-  first_name: z
+  customer_name: z
     .string()
     .min(2, "First name must be at least 2 characters")
     .max(100, "First name must not exceed 100 characters"),
-  last_name: z.string().optional(),
   phone: z
     .string()
     .min(8, "Phone must be at least 8 characters")
@@ -60,8 +59,7 @@ export default function StorefrontRegisterPage() {
     try {
       setServerError(null);
       const response = await storefrontService.customerRegister(domain, {
-        first_name: data.first_name,
-        last_name: data.last_name,
+        customer_name: data.customer_name,
         phone: data.phone,
         password: data.password,
       });
@@ -86,25 +84,17 @@ export default function StorefrontRegisterPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               <div>
-                <Label htmlFor="first_name">{t("firstName")} *</Label>
+                <Label htmlFor="customer_name">{t("customerName")} *</Label>
                 <Input
-                  id="first_name"
-                  {...register("first_name")}
+                  id="customer_name"
+                  {...register("customer_name")}
                   className="mt-1"
                 />
-                {errors.first_name && (
-                  <FormError message={errors.first_name.message} />
+                {errors.customer_name && (
+                  <FormError message={errors.customer_name.message} />
                 )}
-              </div>
-              <div>
-                <Label htmlFor="last_name">{t("lastName")}</Label>
-                <Input
-                  id="last_name"
-                  {...register("last_name")}
-                  className="mt-1"
-                />
               </div>
             </div>
 

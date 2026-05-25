@@ -2,7 +2,7 @@
 
 /**
  * CustomerForm — Reusable form for creating and editing customers.
- * Fields: first_name, last_name, email, phone, notes, status, gender, birth_date.
+ * Fields: customer_name, last_name, email, phone, notes, status, gender, birth_date.
  * Validates: at least one of email/phone required, email max 255, phone 8-20, notes max 1000.
  * Handles 409 for duplicate email/phone.
  *
@@ -50,8 +50,7 @@ export function CustomerForm({
   const { control, handleSubmit, reset, setError } = useForm<CustomerFormData>({
     resolver: zodResolver(customerSchema),
     defaultValues: {
-      first_name: "",
-      last_name: "",
+      customer_name: "",
       email: "",
       phone: "",
       notes: "",
@@ -65,8 +64,7 @@ export function CustomerForm({
   useEffect(() => {
     if (customer) {
       reset({
-        first_name: customer.first_name || "",
-        last_name: customer.last_name || "",
+        customer_name: customer.customer_name || "",
         email: customer.email || "",
         phone: customer.phone || "",
         notes: customer.notes || "",
@@ -143,15 +141,9 @@ export function CustomerForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           control={control}
-          name="first_name"
+          name="customer_name"
           label="الاسم الأول"
           placeholder="أدخل الاسم الأول"
-        />
-        <FormField
-          control={control}
-          name="last_name"
-          label="اسم العائلة"
-          placeholder="أدخل اسم العائلة"
         />
       </div>
 

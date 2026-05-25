@@ -80,8 +80,7 @@ export interface CreateCheckoutInput {
 // ─── Customer registration input ───
 
 export interface CustomerRegistrationInput {
-  first_name: string;
-  last_name?: string;
+  customer_name: string;
   phone: string;
   password: string;
 }

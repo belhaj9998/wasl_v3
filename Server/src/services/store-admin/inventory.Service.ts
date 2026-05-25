@@ -48,6 +48,12 @@ interface AdjustInventoryInput {
   reference_id?: number;
 }
 
+interface UpdateInventoryInput {
+  available_quantity?: number;
+  low_stock_threshold?: number;
+  reason?: string;
+}
+
 /**
  * InventoryService handles inventory management within a store:
  * listing inventory levels, low-stock alerts, adjustments with movement recording,
@@ -214,6 +220,70 @@ export class InventoryService {
     }
 
     return inventory;
+  }
+
+  /**
+   * Sets inventory values directly for product edit flows.
+   * Records a movement when the available quantity changes.
+   */
+  async update(
+    storeId: number,
+    variantId: number,
+    data: UpdateInventoryInput,
+    actorUserId: number,
+  ) {
+    return await prisma.$transaction(async (tx) => {
+      const inventory = await tx.inventory.findFirst({
+        where: { store_id: storeId, variant_id: variantId },
+      });
+
+      if (!inventory) {
+        throw AppError.notFound("Inventory record not found for this variant");
+      }
+
+      const nextAvailable =
+        data.available_quantity ?? inventory.available_quantity;
+      const nextLowStockThreshold =
+        data.low_stock_threshold ?? inventory.low_stock_threshold;
+      const quantityChange = nextAvailable - inventory.available_quantity;
+
+      const updated = await tx.inventory.update({
+        where: {
+          variant_id_store_id: { variant_id: variantId, store_id: storeId },
+        },
+        data: {
+          available_quantity: nextAvailable,
+          total_quantity: nextAvailable + inventory.reserved_quantity,
+          low_stock_threshold: nextLowStockThreshold,
+        },
+        include: {
+          variant: {
+            include: {
+              product: {
+                select: { id: true, name: true, slug: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (quantityChange !== 0) {
+        await tx.inventoryMovement.create({
+          data: {
+            store_id: storeId,
+            variant_id: variantId,
+            actor_user_id: actorUserId,
+            type: quantityChange > 0 ? "ADJUSTMENT_IN" : "ADJUSTMENT_OUT",
+            quantity_change: quantityChange,
+            reason: data.reason || null,
+            reference_type: "product_form",
+            reference_id: null,
+          },
+        });
+      }
+
+      return updated;
+    });
   }
 
   /**

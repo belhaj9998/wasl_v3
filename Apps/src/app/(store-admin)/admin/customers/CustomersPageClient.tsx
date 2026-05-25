@@ -3,7 +3,7 @@
 /**
  * Customers List Page — Client Component
  * Displays a paginated, searchable, filterable table of store customers.
- * Columns: name (first_name + last_name), email, phone, status (badge), total_orders, total_spent.
+ * Columns: name ( customer_name), email, phone, status (badge), total_orders, total_spent.
  * Supports search by name/email/phone and filter by status (ACTIVE, BLOCKED, ARCHIVED).
  * Pagination default 20, max 100.
  *
@@ -156,7 +156,7 @@ export default function CustomersPageClient() {
         header: "الاسم",
         enableSorting: true,
         accessorFn: (row) =>
-          [row.first_name, row.last_name].filter(Boolean).join(" "),
+          [row.customer_name].filter(Boolean).join(" "),
       },
       {
         id: "email",

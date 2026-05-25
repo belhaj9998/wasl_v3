@@ -14,6 +14,7 @@ interface CategoryTreeNode {
   image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  product_count: number;
   created_at: Date;
   updated_at: Date;
   children: CategoryTreeNode[];
@@ -92,7 +93,7 @@ export class CategoryService {
 
     if (flat) {
       // Flat paginated list
-      const [data, total] = await Promise.all([
+      const [categories, total] = await Promise.all([
         prisma.category.findMany({
           where,
           skip: (page - 1) * limit,
@@ -101,6 +102,7 @@ export class CategoryService {
         }),
         prisma.category.count({ where }),
       ]);
+      const data = await this.withProductCounts(storeId, categories);
 
       return {
         data,
@@ -119,7 +121,36 @@ export class CategoryService {
       orderBy: { sort_order: "asc" },
     });
 
-    return this.buildCategoryTree(categories);
+    return this.buildCategoryTree(
+      await this.withProductCounts(storeId, categories),
+    );
+  }
+
+  private async withProductCounts<T extends { id: number }>(
+    storeId: number,
+    categories: T[],
+  ): Promise<Array<T & { product_count: number }>> {
+    if (categories.length === 0) {
+      return [];
+    }
+
+    const counts = await prisma.productCategory.groupBy({
+      by: ["category_id"],
+      where: {
+        store_id: storeId,
+        category_id: { in: categories.map((category) => category.id) },
+      },
+      _count: { product_id: true },
+    });
+
+    const countByCategoryId = new Map(
+      counts.map((item) => [item.category_id, item._count.product_id]),
+    );
+
+    return categories.map((category) => ({
+      ...category,
+      product_count: countByCategoryId.get(category.id) ?? 0,
+    }));
   }
 
   /**

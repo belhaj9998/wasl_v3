@@ -56,6 +56,7 @@ export default function ProductNewPage() {
       compare_at_price: data.compare_at_price || undefined,
       cost_price: data.cost_price || undefined,
       track_inventory: data.track_inventory,
+      has_variants: data.has_variants,
       status: data.status || "DRAFT",
       category_ids:
         data.category_ids.length > 0 ? data.category_ids : undefined,
@@ -66,7 +67,7 @@ export default function ProductNewPage() {
     ).unwrap();
 
     toast.success(tSuccess("product.created"));
-    router.push(ROUTES.STORE_ADMIN.PRODUCT_EDIT(result.id));
+    return result;
   };
 
   return (

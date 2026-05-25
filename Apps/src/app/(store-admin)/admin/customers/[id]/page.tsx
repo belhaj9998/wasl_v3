@@ -178,8 +178,7 @@ export default function CustomerDetailPage() {
       if (!currentStoreId || !customerId) return;
 
       const payload = {
-        first_name: data.first_name || undefined,
-        last_name: data.last_name || undefined,
+        customer_name: data.customer_name || undefined,
         email: data.email || undefined,
         phone: data.phone || undefined,
         notes: data.notes || undefined,
@@ -325,7 +324,7 @@ export default function CustomerDetailPage() {
           </Button>
           <div>
             <h2 className="text-2xl font-bold tracking-tight">
-              {[customer.first_name, customer.last_name]
+              {[customer.customer_name]
                 .filter(Boolean)
                 .join(" ") || "عميل"}
             </h2>
@@ -551,8 +550,7 @@ function CustomerProfileView({ customer }: { customer: Customer }) {
 
   return (
     <div className="grid gap-6 sm:grid-cols-2">
-      <InfoItem label="الاسم الأول" value={customer.first_name} />
-      <InfoItem label="اسم العائلة" value={customer.last_name} />
+      <InfoItem label="الاسم الأول" value={customer.customer_name} />
       <InfoItem label="البريد الإلكتروني" value={customer.email} />
       <InfoItem label="رقم الهاتف" value={customer.phone} dir="ltr" />
       <InfoItem

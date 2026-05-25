@@ -73,14 +73,16 @@ export default function ProductEditPage() {
       compare_at_price: data.compare_at_price || null,
       cost_price: data.cost_price || null,
       track_inventory: data.track_inventory,
+      has_variants: data.has_variants,
       category_ids: data.category_ids,
     };
 
-    await dispatch(
+    const result = await dispatch(
       updateProduct({ storeId: currentStoreId, productId, payload }),
     ).unwrap();
 
     toast.success(tSuccess("product.updated"));
+    return result;
   };
 
   // Handle status change

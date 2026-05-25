@@ -62,6 +62,26 @@ export const getByVariantId = asyncHandler(
 );
 
 /**
+ * PATCH /api/stores/:storeId/inventory/:variantId
+ * Sets inventory quantity and low-stock threshold for a variant.
+ */
+export const update = asyncHandler(async (req: AppRequest, res: Response) => {
+  const storeId = req.storeId!;
+  const variantId = parseInt(req.params.variantId as string, 10);
+  const actorUserId = req.user!.userId;
+  const { available_quantity, low_stock_threshold, reason } = req.body;
+
+  const inventory = await inventoryService.update(
+    storeId,
+    variantId,
+    { available_quantity, low_stock_threshold, reason },
+    actorUserId,
+  );
+
+  sendSuccess(res, { inventory }, "Inventory updated successfully");
+});
+
+/**
  * POST /api/stores/:storeId/inventory/:variantId/adjust
  * Adjusts inventory for a specific variant and records the movement.
  */

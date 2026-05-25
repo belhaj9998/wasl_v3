@@ -42,9 +42,15 @@ enum SubscriptionStatus {
 
 enum ProductStatus {
   DRAFT
-  PENDING_REVIEW
+  HIDDEN
   PUBLISHED
   ARCHIVED
+}
+
+enum ProductOptionType {
+  TEXT
+  COLOR
+  IMAGE
 }
 
 enum InventoryMovementType {
@@ -394,6 +400,7 @@ model ProductOption {
   store_id   Int
   product_id Int
   name       String
+  type       ProductOptionType    @default(TEXT)
   position   Int                  @default(0)
   store      Store                @relation(fields: [store_id], references: [id], onDelete: Cascade)
   product    Product              @relation(fields: [product_id, store_id], references: [id, store_id], onDelete: Cascade)
@@ -408,6 +415,8 @@ model ProductOptionValue {
   store_id      Int
   option_id     Int
   value         String
+  color_hex     String?
+  image_url     String?
   position      Int                  @default(0)
   store         Store                @relation(fields: [store_id], references: [id], onDelete: Cascade)
   option        ProductOption        @relation(fields: [option_id, store_id], references: [id, store_id], onDelete: Cascade)
@@ -502,8 +511,9 @@ model InventoryMovement {
 model Customer {
   id            Int               @id @default(autoincrement())
   store_id      Int
-  first_name    String?
-  last_name     String?
+  customer_name String?
+  // first_name    String?
+  // last_name     String?
   phone         String?
   password_hash String?
   gender        String?

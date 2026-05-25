@@ -23,11 +23,7 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
     | "BLOCKED"
     | "ARCHIVED"
     | undefined;
-  const sort_by = req.query.sort_by as
-    | "created_at"
-    | "first_name"
-    | "last_name"
-    | undefined;
+  
   const sort_order = req.query.sort_order as "asc" | "desc" | undefined;
 
   const result = await customerService.list(storeId, {
@@ -35,7 +31,6 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
     limit,
     search,
     status,
-    sort_by,
     sort_order,
   });
 

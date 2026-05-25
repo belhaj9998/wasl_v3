@@ -6,10 +6,7 @@ import {
   PrismaTransactionClient,
 } from "../../utils/orderNumberGenerator";
 import { couponService } from "./coupon.Service";
-import {
-  mapOrderToDto,
-  mapOrderTimelineToDto,
-} from "../../mappers";
+import { mapOrderToDto, mapOrderTimelineToDto } from "../../mappers";
 import {
   ShipmentStatus,
   PaymentStatus,
@@ -215,8 +212,7 @@ export class OrderService {
           customer: {
             select: {
               id: true,
-              first_name: true,
-              last_name: true,
+              customer_name: true,
               phone: true,
             },
           },
@@ -259,8 +255,7 @@ export class OrderService {
         customer: {
           select: {
             id: true,
-            first_name: true,
-            last_name: true,
+            customer_name: true,
             phone: true,
           },
         },
@@ -291,9 +286,7 @@ export class OrderService {
         if (!customer) {
           throw AppError.notFound("Customer not found or not active");
         }
-        customerName = [customer.first_name, customer.last_name]
-          .filter(Boolean)
-          .join(" ");
+        customerName = [customer.customer_name].filter(Boolean).join(" ");
         customerPhone = customer.phone ?? data.shipping_address.phone ?? "";
       } else {
         customerName = data.customer_name ?? data.shipping_address.full_name;
@@ -432,7 +425,8 @@ export class OrderService {
           full_name: data.shipping_address.full_name,
           phone: data.shipping_address.phone ?? null,
           city: data.shipping_address.city,
-          region: data.shipping_address.region ?? data.shipping_address.state ?? null,
+          region:
+            data.shipping_address.region ?? data.shipping_address.state ?? null,
           street_line_1: data.shipping_address.street_line_1,
           street_line_2: data.shipping_address.street_line_2 ?? null,
           postal_code: data.shipping_address.postal_code ?? null,
@@ -449,7 +443,8 @@ export class OrderService {
             full_name: data.billing_address.full_name,
             phone: data.billing_address.phone ?? null,
             city: data.billing_address.city,
-            region: data.billing_address.region ?? data.billing_address.state ?? null,
+            region:
+              data.billing_address.region ?? data.billing_address.state ?? null,
             street_line_1: data.billing_address.street_line_1,
             street_line_2: data.billing_address.street_line_2 ?? null,
             postal_code: data.billing_address.postal_code ?? null,
@@ -726,7 +721,7 @@ export class OrderService {
         note,
       },
       include: {
-        actor: { select: { id: true, first_name: true, last_name: true } },
+        actor: { select: { id: true, customer_name: true } },
       },
     });
 
@@ -762,7 +757,7 @@ export class OrderService {
         take: limit,
         orderBy: { created_at: "desc" },
         include: {
-          actor: { select: { id: true, first_name: true, last_name: true } },
+          actor: { select: { id: true, customer_name: true } },
         },
       }),
       prisma.orderTimeline.count({ where }),

@@ -20,6 +20,12 @@ export interface AdjustInventoryPayload {
   reason?: string;
 }
 
+export interface UpdateInventoryPayload {
+  available_quantity?: number;
+  low_stock_threshold?: number;
+  reason?: string;
+}
+
 export interface InventoryItem extends InventoryLevel {
   product_name: string;
   variant_title: string;
@@ -126,6 +132,23 @@ export const inventoryService = {
           quantity: payload.quantity_change,
           reason: payload.reason,
         },
+        storeId,
+      },
+    ).then(
+      (res) =>
+        ({
+          ...res,
+          data: normalizeInventory(res.data.inventory),
+        }) as ApiResponse<InventoryItem>,
+    );
+  },
+
+  update(storeId: number, variantId: number, payload: UpdateInventoryPayload) {
+    return apiClient<ApiResponse<InventoryResponse>>(
+      `${API_ENDPOINTS.STORE.INVENTORY(storeId)}/${variantId}`,
+      {
+        method: "PATCH",
+        body: payload,
         storeId,
       },
     ).then(

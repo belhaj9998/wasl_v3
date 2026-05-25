@@ -10,6 +10,7 @@ import type {
   PaginatedResponse,
   PaginationParams,
   Product,
+  ProductOptionType,
   ProductStatus,
   ProductOption,
   ProductVariant,
@@ -24,6 +25,7 @@ export interface CreateProductPayload {
   compare_at_price?: string | null;
   cost_price?: string | null;
   track_inventory?: boolean;
+  has_variants?: boolean;
   category_ids?: number[];
   status?: string;
 }
@@ -32,21 +34,27 @@ export interface UpdateProductPayload extends Partial<CreateProductPayload> {}
 
 export interface CreateOptionPayload {
   name: string;
+  type?: ProductOptionType;
   position?: number;
 }
 
 export interface UpdateOptionPayload {
   name?: string;
+  type?: ProductOptionType;
   position?: number;
 }
 
 export interface CreateOptionValuePayload {
   value: string;
+  color_hex?: string | null;
+  image_url?: string | null;
   position?: number;
 }
 
 export interface UpdateOptionValuePayload {
   value?: string;
+  color_hex?: string | null;
+  image_url?: string | null;
   position?: number;
 }
 

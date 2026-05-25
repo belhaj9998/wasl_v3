@@ -1,4 +1,4 @@
-CREATE TYPE "ProductStatus_new" AS ENUM ('DRAFT', 'PENDING_REVIEW', 'PUBLISHED', 'ARCHIVED');
+CREATE TYPE "ProductStatus_new" AS ENUM ('DRAFT', 'HIDDEN', 'PUBLISHED', 'ARCHIVED');
 
 ALTER TABLE "Product" ALTER COLUMN "status" DROP DEFAULT;
 
@@ -7,6 +7,7 @@ ALTER COLUMN "status" TYPE "ProductStatus_new"
 USING (
   CASE "status"::text
     WHEN 'ACTIVE' THEN 'PUBLISHED'
+    WHEN 'PENDING_REVIEW' THEN 'HIDDEN'
     ELSE "status"::text
   END
 )::"ProductStatus_new";

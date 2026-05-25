@@ -15,8 +15,7 @@ import type {
 } from "@/types";
 
 export interface CreateCustomerPayload {
-  first_name?: string;
-  last_name?: string;
+  
   email?: string;
   phone?: string;
   notes?: string;
@@ -53,7 +52,7 @@ interface AddressResponse {
 
 type CustomerListParams = PaginationParams & {
   status?: "ACTIVE" | "BLOCKED" | "ARCHIVED";
-  sort_by?: "created_at" | "first_name" | "last_name";
+  sort_by?: "created_at" | "customer_name" ;
   sort_order?: "asc" | "desc";
 };
 

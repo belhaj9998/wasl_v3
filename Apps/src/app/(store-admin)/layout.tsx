@@ -543,12 +543,12 @@ export default function StoreAdminLayout({
 
   return (
     <StoreSubscriptionContext.Provider value={subscriptionContextValue}>
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex min-h-dvh">
         {/* Desktop Sidebar */}
         <StoreAdminSidebar />
 
         {/* Main Content Area */}
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* Header */}
           <StoreAdminHeader
             stores={userStores}
@@ -557,7 +557,7 @@ export default function StoreAdminLayout({
           />
 
           {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+          <main className="flex-1 p-4 md:p-6">{children}</main>
         </div>
       </div>
     </StoreSubscriptionContext.Provider>

@@ -33,7 +33,7 @@ export const list = asyncHandler(async (req: AppRequest, res: Response) => {
     limit: limit ? parseInt(limit as string, 10) : undefined,
     status: status as
       | "DRAFT"
-      | "PENDING_REVIEW"
+      | "HIDDEN"
       | "PUBLISHED"
       | "ARCHIVED"
       | undefined,

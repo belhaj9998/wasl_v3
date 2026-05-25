@@ -24,6 +24,8 @@ export interface FormFieldOption {
   label: string;
 }
 
+const EMPTY_SELECT_VALUE = "__empty_select_value__";
+
 export interface FormFieldProps<T extends FieldValues> {
   /** React Hook Form control object */
   control: Control<T>;
@@ -193,10 +195,20 @@ function renderField({
       );
 
     case "select":
+      const currentValue = (field.value as string) ?? "";
+      const hasEmptyOption =
+        options?.some((option) => option.value === "") ?? false;
+      const selectValue =
+        hasEmptyOption && currentValue === ""
+          ? EMPTY_SELECT_VALUE
+          : currentValue;
+
       return (
         <Select
-          value={(field.value as string) ?? ""}
-          onValueChange={field.onChange}
+          value={selectValue}
+          onValueChange={(value) => {
+            field.onChange(value === EMPTY_SELECT_VALUE ? "" : value);
+          }}
           disabled={disabled}
         >
           <SelectTrigger
@@ -210,7 +222,10 @@ function renderField({
           </SelectTrigger>
           <SelectContent>
             {options?.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
+              <SelectItem
+                key={option.value || EMPTY_SELECT_VALUE}
+                value={option.value === "" ? EMPTY_SELECT_VALUE : option.value}
+              >
                 {option.label}
               </SelectItem>
             ))}

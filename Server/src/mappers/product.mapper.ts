@@ -42,6 +42,8 @@ export function mapOptionValueToDto(valueOrLink: RawRecord) {
   return {
     id: value.id,
     value: value.value,
+    color_hex: value.color_hex ?? null,
+    image_url: value.image_url ?? null,
     position: value.position ?? 0,
   };
 }
@@ -50,6 +52,7 @@ export function mapProductOptionToDto(option: RawRecord) {
   return {
     id: option.id,
     name: option.name,
+    type: option.type ?? "TEXT",
     position: option.position ?? 0,
     values: asArray(option.values).map(mapOptionValueToDto),
   };

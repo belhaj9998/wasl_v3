@@ -32,6 +32,7 @@ import {
   updateVariantSchema,
   // Inventory schemas
   adjustInventorySchema,
+  updateInventorySchema,
   inventoryListQuerySchema,
   movementListQuerySchema,
   // Media schemas
@@ -334,6 +335,15 @@ router.get(
   requirePermission("inventory.view"),
   validateParams(inventoryVariantIdParamSchema),
   inventoryController.getByVariantId,
+);
+
+// PATCH /inventory/:variantId — set inventory values
+router.patch(
+  "/inventory/:variantId",
+  requirePermission("inventory.adjust"),
+  validateParams(inventoryVariantIdParamSchema),
+  validateBody(updateInventorySchema),
+  inventoryController.update,
 );
 
 // POST /inventory/:variantId/adjust — adjust inventory

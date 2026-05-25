@@ -67,8 +67,31 @@ export const productSchema = z
     )
     .nullish(),
   track_inventory: z.boolean().optional(),
+  has_variants: z.boolean().optional(),
+  inventory_quantity: z
+    .string()
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const num = Number(val);
+        return Number.isInteger(num) && num >= 0;
+      },
+      { message: "كمية المخزون يجب أن تكون رقماً صحيحاً لا يقل عن صفر" },
+    )
+    .optional(),
+  low_stock_threshold: z
+    .string()
+    .refine(
+      (val) => {
+        if (!val) return true;
+        const num = Number(val);
+        return Number.isInteger(num) && num >= 0;
+      },
+      { message: "حد التنبيه يجب أن يكون رقماً صحيحاً لا يقل عن صفر" },
+    )
+    .optional(),
   status: z
-    .enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "ARCHIVED"])
+    .enum(["DRAFT", "HIDDEN", "PUBLISHED", "ARCHIVED"])
     .optional(),
   meta_title: z
     .string()

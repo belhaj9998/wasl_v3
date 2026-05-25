@@ -24,8 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Customer } from "@/types";
 
 const profileSchema = z.object({
-  first_name: z.string().min(2).max(100),
-  last_name: z.string().optional(),
+  customer_name: z.string().min(2).max(100),
   email: z.string().email().optional(),
   phone: z.string().min(8).max(20).optional().or(z.literal("")),
 });
@@ -57,8 +56,7 @@ export default function StorefrontAccountPage() {
         const response = await storefrontService.getCustomerProfile(domain);
         setCustomer(response.data);
         reset({
-          first_name: response.data.first_name,
-          last_name: response.data.last_name || "",
+          customer_name: response.data.customer_name,
           email: response.data.email,
           phone: response.data.phone || "",
         });
@@ -75,8 +73,7 @@ export default function StorefrontAccountPage() {
   const onSubmit = async (data: ProfileFormData) => {
     try {
       const response = await storefrontService.updateCustomerProfile(domain, {
-        first_name: data.first_name,
-        last_name: data.last_name || undefined,
+        customer_name: data.customer_name,
         phone: data.phone || undefined,
       });
       setCustomer(response.data);
@@ -119,25 +116,17 @@ export default function StorefrontAccountPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div>
               <div>
-                <Label htmlFor="first_name">{t("firstName")}</Label>
+                <Label htmlFor="customer_name">{t("customerName")}</Label>
                 <Input
-                  id="first_name"
-                  {...register("first_name")}
+                  id="customer_name"
+                  {...register("customer_name")}
                   className="mt-1"
                 />
-                {errors.first_name && (
-                  <FormError message={errors.first_name.message} />
+                {errors.customer_name && (
+                  <FormError message={errors.customer_name.message} />
                 )}
-              </div>
-              <div>
-                <Label htmlFor="last_name">{t("lastName")}</Label>
-                <Input
-                  id="last_name"
-                  {...register("last_name")}
-                  className="mt-1"
-                />
               </div>
             </div>
 

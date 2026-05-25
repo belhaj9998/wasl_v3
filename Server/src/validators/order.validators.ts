@@ -8,8 +8,7 @@ import { z } from "zod";
  * Validates: Requirements 2.2
  */
 export const createCustomerSchema = z.object({
-  first_name: z.string().min(1).max(100).optional(),
-  last_name: z.string().min(1).max(100).optional(),
+  customer_name: z.string().min(1).max(100).optional(),
   email: z.string().email().max(255).optional(),
   phone: z.string().min(8).max(20).optional(),
   gender: z.enum(["male", "female", "other"]).optional(),
@@ -24,8 +23,7 @@ export const createCustomerSchema = z.object({
  * Validates: Requirements 4.2
  */
 export const updateCustomerSchema = z.object({
-  first_name: z.string().min(1).max(100).nullable().optional(),
-  last_name: z.string().min(1).max(100).nullable().optional(),
+  customer_name: z.string().min(1).max(100).nullable().optional(),
   email: z.string().email().max(255).nullable().optional(),
   phone: z.string().min(8).max(20).nullable().optional(),
   gender: z.enum(["male", "female", "other"]).nullable().optional(),
@@ -45,7 +43,7 @@ export const customerListQuerySchema = z.object({
   search: z.string().max(200).optional(),
   status: z.enum(["ACTIVE", "BLOCKED", "ARCHIVED"]).optional(),
   sort_by: z
-    .enum(["created_at", "first_name", "last_name"])
+    .enum(["created_at", "customer_name"])
     .optional()
     .default("created_at"),
   sort_order: z.enum(["asc", "desc"]).optional().default("desc"),
