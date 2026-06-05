@@ -777,6 +777,39 @@
     "sourceManual": "يدوي",
     "sourceInstagram": "انستغرام",
     "sourceFacebook": "فيسبوك",
+    "source": {
+      "channels": {
+        "STOREFRONT": "المتجر",
+        "ADMIN": "لوحة التحكم",
+        "WHATSAPP": "واتساب",
+        "PHONE": "هاتف",
+        "INSTAGRAM": "انستغرام",
+        "FACEBOOK": "فيسبوك",
+        "TIKTOK": "تيك توك",
+        "OTHER": "أخرى",
+        "UNKNOWN": "غير معروف"
+      },
+      "badge": { "label": "المصدر" },
+      "card": {
+        "title": "المصدر",
+        "edit": "تغيير المصدر"
+      },
+      "select": { "placeholder": "اختر المصدر" },
+      "filter": {
+        "label": "المصدر",
+        "clear": "مسح فلتر المصدر",
+        "selected": "{count, plural, zero {لا مصادر} one {مصدر واحد} two {مصدران} few {# مصادر} many {# مصدراً} other {# مصدر}}"
+      },
+      "toasts": {
+        "updateSuccess": "تم تحديث المصدر",
+        "errorGeneric": "حدث خطأ ما"
+      },
+      "errors": {
+        "INVALID_ORDER_SOURCE": "مصدر غير صالح.",
+        "ORDER_NOT_FOUND": "الطلب غير موجود.",
+        "FORBIDDEN": "ليس لديك صلاحية للقيام بذلك."
+      }
+    },
     "newOrder": {
       "title": "إنشاء طلب يدوي",
       "description": "أضف طلب جديد يدوياً مع تفاصيل المنتجات والشحن",
@@ -833,6 +866,49 @@
       "insufficientInventory": "بعض المنتجات غير متوفرة بالكمية المطلوبة",
       "availableOnly": "الكمية المتاحة: {count} فقط",
       "searching": "جاري البحث..."
+    },
+    "assignee": {
+      "title": "المسؤول",
+      "unassigned": "بدون مسؤول",
+      "assignToMe": "تعيين لي",
+      "selectPlaceholder": "اختر المسؤول",
+      "unassignSentinelLabel": "إلغاء التعيين",
+      "filter": {
+        "label": "المسؤول",
+        "me": "أنا",
+        "unassigned": "بدون مسؤول",
+        "selected": "{count, plural, zero {لا مسؤول} one {مسؤول واحد} two {مسؤولان} few {# مسؤولين} many {# مسؤولاً} other {# مسؤول}}",
+        "clear": "مسح فلتر المسؤول"
+      },
+      "column": { "header": "المسؤول" },
+      "cannotAssignTerminalStatus": "لا يمكن تغيير المسؤول للطلبات المغلقة.",
+      "cannotAssignNotEligible": "لست عضواً في هذا المتجر.",
+      "permissions": { "readOnly": "ليس لديك صلاحية لتغيير المسؤول." },
+      "toasts": {
+        "assignSuccess": "تم تحديث المسؤول",
+        "unassignSuccess": "تم إلغاء تعيين المسؤول",
+        "selfAssignSuccess": "تم تعيين الطلب لك",
+        "errorGeneric": "حدث خطأ ما"
+      },
+      "errors": {
+        "VALIDATION_ERROR": "اختيار المسؤول غير صالح.",
+        "ASSIGNEE_NOT_ELIGIBLE": "هذا المستخدم ليس عضواً في هذا المتجر.",
+        "ASSIGNEE_FILTER_INVALID": "فلتر المسؤول غير صالح.",
+        "ORDER_NOT_FOUND": "الطلب غير موجود.",
+        "ORDER_TERMINAL_STATUS": "هذا الطلب مغلق ولا يمكن إعادة تعيينه.",
+        "FORBIDDEN": "ليس لديك صلاحية للقيام بذلك."
+      }
+    },
+    "timeline": {
+      "assigned": "عيّن المسؤولية إلى {to}",
+      "unassigned": "أزال المسؤولية من {from}",
+      "reassigned": "غيّر المسؤول من {from} إلى {to}",
+      "selfAssigned": "عيّن نفسه مسؤولاً",
+      "deletedUserSuffix": "(محذوف)",
+      "sourceChanged": "غيّر المصدر من {from} إلى {to}"
+    },
+    "list": {
+      "columns": { "assignedUser": "المسؤول", "source": "المصدر" }
     }
   },
   "statuses": {
@@ -1089,6 +1165,104 @@
     "tooltip": {
       "limitReached": "تم الوصول إلى الحد الأقصى للمتاجر في خطتك الحالية. قم بالترقية لإنشاء المزيد.",
       "noSubscription": "يلزم وجود اشتراك نشط لإنشاء المتاجر."
+    }
+  },
+  "orderTags": {
+    "page": {
+      "title": "وسوم الطلبات",
+      "description": "أدر التسميات التي يمكن إلصاقها بالطلبات لتمييز سير العمل والتصنيف.",
+      "createButton": "إنشاء وسم",
+      "emptyState": {
+        "title": "لا توجد وسوم بعد",
+        "description": "أنشئ أول وسم لتبدأ بتمييز الطلبات."
+      },
+      "table": {
+        "name": "الاسم",
+        "assignmentCount": "الطلبات",
+        "createdAt": "تاريخ الإنشاء",
+        "actions": "الإجراءات"
+      }
+    },
+    "card": {
+      "title": "الوسوم",
+      "edit": "تعديل الوسوم",
+      "empty": "لا توجد وسوم معينة"
+    },
+    "rowExpansion": {
+      "label": "الوسوم:",
+      "empty": "—"
+    },
+    "filter": {
+      "placeholder": "تصفية بالوسم",
+      "selected": "{count, plural, zero {لا شيء} one {وسم واحد محدد} two {وسمان محددان} few {# وسوم محددة} many {# وسماً محدداً} other {# وسم محدد}}",
+      "clear": "مسح"
+    },
+    "picker": {
+      "placeholder": "اختر الوسوم",
+      "createNew": "إنشاء وسم جديد",
+      "loading": "جاري تحميل الوسوم...",
+      "empty": "لا توجد وسوم تطابق بحثك"
+    },
+    "form": {
+      "name": "اسم الوسم",
+      "namePlaceholder": "مثال: VIP، شحن عاجل",
+      "color": "اللون",
+      "submitCreate": "إنشاء الوسم",
+      "submitUpdate": "حفظ التغييرات",
+      "cancel": "إلغاء"
+    },
+    "delete": {
+      "title": "حذف الوسم",
+      "description": "هل تريد حذف \"{name}\"؟ سيتم إزالة الوسم من {count, plural, zero {لا طلبات} one {طلب واحد} two {طلبين} few {# طلبات} many {# طلباً} other {# طلب}}.",
+      "confirm": "حذف الوسم",
+      "cancel": "إلغاء"
+    },
+    "bulk": {
+      "addAction": "إضافة وسوم",
+      "removeAction": "إزالة وسوم",
+      "selectionCount": "{count, plural, zero {لا توجد طلبات محددة} one {طلب واحد محدد} two {طلبان محددان} few {# طلبات محددة} many {# طلباً محدداً} other {# طلب محدد}}"
+    },
+    "permissions": {
+      "cannotCreateTag": "ليس لديك صلاحية لإنشاء الوسوم.",
+      "cannotEditTags": "ليس لديك صلاحية لتعديل وسوم هذا الطلب."
+    },
+    "toasts": {
+      "createSuccess": "تم إنشاء الوسم.",
+      "updateSuccess": "تم تحديث الوسم.",
+      "deleteSuccess": "تم حذف الوسم.",
+      "assignSuccess": "تم تحديث وسوم الطلب.",
+      "bulkAddSuccess": "تمت إضافة الوسوم إلى {count, plural, zero {لا طلبات} one {طلب واحد} two {طلبين} few {# طلبات} many {# طلباً} other {# طلب}}.",
+      "bulkRemoveSuccess": "تمت إزالة الوسوم من {count, plural, zero {لا طلبات} one {طلب واحد} two {طلبين} few {# طلبات} many {# طلباً} other {# طلب}}.",
+      "errorGeneric": "حدث خطأ ما. يرجى المحاولة مرة أخرى."
+    },
+    "errors": {
+      "TAG_NAME_INVALID": "يجب أن يكون اسم الوسم بين 1 و 30 حرفاً.",
+      "TAG_COLOR_INVALID": "يرجى اختيار لون صالح.",
+      "TAG_NAME_DUPLICATE": "يوجد وسم بهذا الاسم في متجرك بالفعل.",
+      "TAG_STORE_LIMIT_REACHED": "وصلت إلى الحد الأقصى وهو 50 وسماً لكل متجر.",
+      "TAG_NOT_FOUND": "الوسم غير موجود.",
+      "TAG_NOT_FOUND_IN_STORE": "أحد الوسوم لا ينتمي إلى هذا المتجر.",
+      "TAG_ORDER_LIMIT_EXCEEDED": "لا يمكن إضافة أكثر من 10 وسوم لكل طلب.",
+      "ORDER_NOT_FOUND": "الطلب غير موجود.",
+      "ORDER_NOT_FOUND_IN_STORE": "أحد الطلبات لا ينتمي إلى هذا المتجر.",
+      "TAG_FILTER_INVALID": "قيمة فلتر الوسوم في الرابط غير صالحة.",
+      "FORBIDDEN": "ليس لديك صلاحية لتنفيذ هذا الإجراء."
+    },
+    "colors": {
+      "slate": "رمادي مزرق",
+      "gray": "رمادي",
+      "red": "أحمر",
+      "orange": "برتقالي",
+      "amber": "كهرماني",
+      "yellow": "أصفر",
+      "green": "أخضر",
+      "emerald": "زمردي",
+      "teal": "أزرق مخضر",
+      "sky": "سماوي",
+      "blue": "أزرق",
+      "indigo": "نيلي",
+      "purple": "بنفسجي",
+      "pink": "وردي"
     }
   }
 }

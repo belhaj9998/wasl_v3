@@ -55,13 +55,23 @@ import { productService } from "@/lib/api/services/product.service";
 import { customerService } from "@/lib/api/services/customer.service";
 import { formatCurrencyLYD } from "@/lib/i18n/formatters";
 import type { SupportedLocale } from "@/lib/i18n/config";
-import type { Product, ProductVariant, Customer } from "@/types";
+import type { Product, ProductVariant, Customer, OrderSource } from "@/types";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface ProductWithVariants extends Product {
   variants: ProductVariant[];
 }
+
+const CREATABLE_ORDER_SOURCES: OrderSource[] = [
+  "ADMIN",
+  "WHATSAPP",
+  "PHONE",
+  "INSTAGRAM",
+  "FACEBOOK",
+  "TIKTOK",
+  "OTHER",
+];
 
 // ─── Order Creation Page ─────────────────────────────────────────────────────
 
@@ -70,6 +80,7 @@ export default function NewOrderPage() {
   const router = useRouter();
   const { currentStoreId } = useStore();
   const t = useTranslations("orders.newOrder");
+  const tSource = useTranslations("orders.source");
   const tCommon = useTranslations("common");
   const tA11y = useTranslations("accessibility.buttons");
   const locale = useLocale() as SupportedLocale;
@@ -119,7 +130,7 @@ export default function NewOrderPage() {
       customer_phone: "",
       customer_email: "",
       notes_from_customer: "",
-      source: "MANUAL",
+      source: "ADMIN",
     },
   });
 
@@ -300,6 +311,7 @@ export default function NewOrderPage() {
           country: data.shipping_address.country || undefined,
         },
         payment_method: data.payment_method || "CASH_ON_DELIVERY",
+        source: data.source,
         items: data.items.map((item) => ({
           product_id: item.product_id,
           variant_id: item.variant_id,
@@ -792,6 +804,17 @@ export default function NewOrderPage() {
                   label: t("manual"),
                 },
               ]}
+            />
+            <FormField
+              control={control}
+              name="source"
+              label={tSource("card.title")}
+              type="select"
+              options={CREATABLE_ORDER_SOURCES.map((source) => ({
+                value: source,
+                label: tSource(`channels.${source}`),
+              }))}
+              className="mt-4"
             />
           </CardContent>
         </Card>

@@ -2,6 +2,9 @@
  * Order & Checkout Types
  */
 
+import type { OrderTagSummary } from "./orderTag.types";
+import type { AssignedUserSummary } from "./assignee.types";
+
 export type OrderStatus =
   | "DRAFT"
   | "PENDING"
@@ -34,16 +37,19 @@ export type PaymentMethod =
 export type OrderSource =
   | "STOREFRONT"
   | "ADMIN"
-  | "MANUAL"
+  | "WHATSAPP"
+  | "PHONE"
   | "INSTAGRAM"
   | "FACEBOOK"
-  | "TIKTOK";
+  | "TIKTOK"
+  | "OTHER";
 
 export interface Order {
   id: number;
   order_number: string;
   store_id: number;
   customer_id: number | null;
+  cart_id: number | null;
   status: OrderStatus;
   payment_status: PaymentStatus;
   source: OrderSource;
@@ -61,6 +67,13 @@ export interface Order {
   internal_notes: OrderNote[];
   items: OrderItem[];
   timeline: TimelineEvent[];
+  /**
+   * Tags assigned to this order, sorted ascending by tag `created_at`.
+   * Always present; an empty array indicates no tags are assigned.
+   */
+  tags: OrderTagSummary[];
+  /** The current assignee, or null when the order is unassigned. */
+  assigned_user: AssignedUserSummary | null;
   created_at: string;
   updated_at: string;
 }
@@ -75,6 +88,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: string;
   total_price: string;
+  product_image?: string | null;
 }
 
 export interface OrderNote {
@@ -95,6 +109,11 @@ export interface TimelineEvent {
   actor_user_id?: number | null;
   payload?: unknown;
   created_at: string;
+}
+
+export interface SourceChangedTimelinePayload {
+  from: OrderSource;
+  to: OrderSource;
 }
 
 export interface Address {

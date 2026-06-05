@@ -6,12 +6,20 @@ import {
   PrismaTransactionClient,
 } from "../../utils/orderNumberGenerator";
 import { couponService } from "./coupon.Service";
-import { mapOrderToDto, mapOrderTimelineToDto } from "../../mappers";
 import {
+  mapOrderToDto,
+  mapOrderTimelineToDto,
+  mapEligibleAssigneeToDto,
+} from "../../mappers";
+import { getStoreDayBoundsUtc } from "../../utils/timezone";
+import { Money, getScale } from "../../utils/money";
+import {
+  Prisma,
   ShipmentStatus,
   PaymentStatus,
   PaymentMethod,
   OrderSource,
+  MembershipStatus,
 } from "../../../generated/prisma";
 
 /**
@@ -23,14 +31,178 @@ interface OrderListParams {
   search?: string;
   status?: ShipmentStatus;
   payment_status?: PaymentStatus;
-  source?: OrderSource;
+  source?: OrderSource[];
   customer_id?: number;
   date_from?: Date;
   date_to?: Date;
   amount_min?: number;
   amount_max?: number;
+  tag_ids?: number[];
+  /**
+   * Pre-resolved assignee filter (Requirements 9.1, 9.2, 9.3):
+   * - undefined → no filter
+   * - "unassigned" → assigned_user_id IS NULL
+   * - number[] → assigned_user_id IN (...) (validated as Eligible_Assignees
+   *   by the controller before reaching the service)
+   */
+  assigned_user_id?: "unassigned" | number[];
   sort_by?: "placed_at" | "grand_total" | "order_number";
   sort_order?: "asc" | "desc";
+}
+/**
+ * Filter parameters shared by list and counts endpoints.
+ * Excludes pagination and sort fields which are list-only concerns.
+ */
+interface OrderFilterParams {
+  search?: string;
+  status?: ShipmentStatus;
+  payment_status?: PaymentStatus;
+  source?: OrderSource[];
+  customer_id?: number;
+  date_from?: Date;
+  date_to?: Date;
+  amount_min?: number;
+  amount_max?: number;
+  tag_ids?: number[];
+  /**
+   * Pre-resolved assignee filter — same semantics as on OrderListParams.
+   * Shared by the counts builder so the per-status tabs stay in sync with
+   * the visible list (Requirement 9.4).
+   */
+  assigned_user_id?: "unassigned" | number[];
+}
+/**
+ * Parameters accepted by getCounts.
+ * Same shape as OrderFilterParams without the `status` field
+ * (since each tab IS a status — counts respect filters but ignore status).
+ */
+interface OrderCountsParams {
+  search?: string;
+  payment_status?: PaymentStatus;
+  source?: OrderSource[];
+  customer_id?: number;
+  date_from?: Date;
+  date_to?: Date;
+  amount_min?: number;
+  amount_max?: number;
+  tag_ids?: number[];
+  /**
+   * Pre-resolved assignee filter — applied identically to the list so the
+   * per-status count tabs stay in sync with the visible list (Requirement 9.4).
+   */
+  assigned_user_id?: "unassigned" | number[];
+}
+
+/**
+ * Result returned by getCounts.
+ * `total` equals the sum of all 11 by_status values.
+ * `by_status` always contains exactly the 11 ShipmentStatus keys
+ * (zero-filled when a status has no matching orders).
+ */
+interface OrderCountsResult {
+  total: number;
+  by_status: Record<ShipmentStatus, number>;
+}
+/**
+ * Result returned by getKpis.
+ * - orders_today_count, pending_orders_count: non-negative integers.
+ * - revenue_today, aov_today: Prisma.Decimal (controller serializes via toFixed(3)).
+ */
+export interface OrderKpisResult {
+  orders_today_count: number;
+  revenue_today: Prisma.Decimal;
+  aov_today: Prisma.Decimal;
+  pending_orders_count: number;
+}
+
+/**
+ * The 11 ShipmentStatus values, in the canonical UI order.
+ * Used to zero-fill the by_status object so the response always
+ * has all keys present even when no orders match.
+ */
+const ALL_SHIPMENT_STATUSES: ShipmentStatus[] = [
+  "DRAFT",
+  "PENDING",
+  "CONFIRMED",
+  "PROCESSING",
+  "PREPARING",
+  "SHIPPED",
+  "IN_TRANSIT",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "CANCELED",
+  "RETURNED",
+];
+
+/**
+ * The Terminal_Status set for assignment purposes. Orders in any of these
+ * states are considered closed and reject every assignment mutation with
+ * `ORDER_TERMINAL_STATUS` (Requirements 4.1, 4.2).
+ */
+const ASSIGNEE_TERMINAL_STATUSES: ReadonlySet<ShipmentStatus> = new Set([
+  ShipmentStatus.CANCELED,
+  ShipmentStatus.RETURNED,
+  ShipmentStatus.DELIVERED,
+]);
+
+/**
+ * Compact, structured audit log for every assignment-mutation rejection path.
+ * Mirrors the design's "Audit logging on rejection" section: a single
+ * `console.warn` entry with a deterministic shape (`event`,
+ * `reason_code`, `store_id`, `actor_user_id`, `payload_summary`) is emitted
+ * before the matching `AppError` is thrown. These audit entries MUST NOT be
+ * written to `OrderTimeline` — they are operational logs only. The HTTP
+ * `route` is a controller-layer concern and is intentionally omitted here.
+ */
+function auditAssigneeRejection(
+  reasonCode: string,
+  context: {
+    store_id: number;
+    actor_user_id: number;
+    order_id: number;
+    target_user_id: number | null;
+    was_terminal_status?: boolean;
+  },
+): void {
+  // eslint-disable-next-line no-console
+  console.warn(
+    JSON.stringify({
+      level: "warn",
+      event: "ORDER_ASSIGNEE_REJECTED",
+      reason_code: reasonCode,
+      store_id: context.store_id,
+      actor_user_id: context.actor_user_id,
+      payload_summary: {
+        order_id: context.order_id,
+        target_user_id: context.target_user_id,
+        was_terminal_status: context.was_terminal_status ?? false,
+      },
+    }),
+  );
+}
+function auditSourceRejection(
+  reasonCode: string,
+  context: {
+    store_id: number;
+    actor_user_id: number;
+    order_id: number;
+    target_source: OrderSource;
+  },
+): void {
+  // eslint-disable-next-line no-console
+  console.warn(
+    JSON.stringify({
+      level: "warn",
+      event: "ORDER_SOURCE_REJECTED",
+      reason_code: reasonCode,
+      store_id: context.store_id,
+      actor_user_id: context.actor_user_id,
+      payload_summary: {
+        order_id: context.order_id,
+        target_source: context.target_source,
+      },
+    }),
+  );
 }
 
 /**
@@ -111,9 +283,9 @@ interface ResolvedOrderItem {
   variant_title: string | null;
   sku: string;
   quantity: number;
-  unit_price: number;
-  discount_total: number;
-  line_total: number;
+  unit_price: Prisma.Decimal;
+  discount_total: Prisma.Decimal;
+  line_total: Prisma.Decimal;
 }
 
 /**
@@ -125,6 +297,81 @@ export class OrderService {
   /**
    * Lists orders with pagination, filtering, sorting, and search.
    */
+  /**
+   * Builds the Prisma `where` clause from filter parameters.
+   * Shared by list() and getCounts() to guarantee filter parity.
+   * The `status` field is honored if provided; callers (e.g. getCounts)
+   * that should ignore status must omit it from `params`.
+   */
+  private buildOrderListWhere(storeId: number, params: OrderFilterParams): any {
+    const where: any = { store_id: storeId };
+
+    if (params.status) {
+      where.status = params.status;
+    }
+
+    if (params.payment_status) {
+      where.payment_status = params.payment_status;
+    }
+
+    if (params.source && params.source.length > 0) {
+      where.source = { in: params.source };
+    }
+
+    if (params.customer_id) {
+      where.customer_id = params.customer_id;
+    }
+
+    if (params.date_from || params.date_to) {
+      where.placed_at = {};
+      if (params.date_from) {
+        where.placed_at.gte = params.date_from;
+      }
+      if (params.date_to) {
+        where.placed_at.lte = params.date_to;
+      }
+    }
+
+    if (params.amount_min !== undefined || params.amount_max !== undefined) {
+      where.grand_total = {};
+      if (params.amount_min !== undefined) {
+        where.grand_total.gte = params.amount_min;
+      }
+      if (params.amount_max !== undefined) {
+        where.grand_total.lte = params.amount_max;
+      }
+    }
+
+    if (params.search) {
+      where.OR = [
+        { order_number: { contains: params.search, mode: "insensitive" } },
+        { customer_name: { contains: params.search, mode: "insensitive" } },
+        { customer_phone: { contains: params.search, mode: "insensitive" } },
+      ];
+    }
+
+    // Tag filter — OR semantics: order matches when it has at least one
+    // assignment whose tag_id is in the requested set.
+    if (params.tag_ids && params.tag_ids.length > 0) {
+      where.tag_assignments = {
+        some: { tag_id: { in: params.tag_ids } },
+      };
+    }
+
+    // Assignee filter (Requirements 9.1, 9.2, 9.3). The param is pre-resolved
+    // by the controller into one of three shapes:
+    //   - "unassigned" → only orders with no assignee (assigned_user_id IS NULL)
+    //   - number[]     → orders whose assignee is in the validated id set
+    //   - undefined    → no assignee clause applied
+    if (params.assigned_user_id === "unassigned") {
+      where.assigned_user_id = null;
+    } else if (Array.isArray(params.assigned_user_id)) {
+      where.assigned_user_id = { in: params.assigned_user_id };
+    }
+
+    return where;
+  }
+
   async list(storeId: number, params: OrderListParams) {
     const {
       page = 1,
@@ -138,62 +385,25 @@ export class OrderService {
       date_to,
       amount_min,
       amount_max,
+      tag_ids,
+      assigned_user_id,
       sort_by = "placed_at",
       sort_order = "desc",
     } = params;
 
-    const where: any = { store_id: storeId };
-
-    // Status filter
-    if (status) {
-      where.status = status;
-    }
-
-    // Payment status filter
-    if (payment_status) {
-      where.payment_status = payment_status;
-    }
-
-    // Source filter
-    if (source) {
-      where.source = source;
-    }
-
-    // Customer filter
-    if (customer_id) {
-      where.customer_id = customer_id;
-    }
-
-    // Date range filter
-    if (date_from || date_to) {
-      where.placed_at = {};
-      if (date_from) {
-        where.placed_at.gte = date_from;
-      }
-      if (date_to) {
-        where.placed_at.lte = date_to;
-      }
-    }
-
-    // Amount range filter
-    if (amount_min !== undefined || amount_max !== undefined) {
-      where.grand_total = {};
-      if (amount_min !== undefined) {
-        where.grand_total.gte = amount_min;
-      }
-      if (amount_max !== undefined) {
-        where.grand_total.lte = amount_max;
-      }
-    }
-
-    // Search filter
-    if (search) {
-      where.OR = [
-        { order_number: { contains: search, mode: "insensitive" } },
-        { customer_name: { contains: search, mode: "insensitive" } },
-        { customer_phone: { contains: search, mode: "insensitive" } },
-      ];
-    }
+    const where = this.buildOrderListWhere(storeId, {
+      search,
+      status,
+      payment_status,
+      source,
+      customer_id,
+      date_from,
+      date_to,
+      amount_min,
+      amount_max,
+      tag_ids,
+      assigned_user_id,
+    });
 
     // Build orderBy
     const orderBy: any = {};
@@ -220,6 +430,43 @@ export class OrderService {
             orderBy: { created_at: "desc" },
             take: 1,
           },
+          items: {
+            select: {
+              id: true,
+              product_id: true,
+              variant_id: true,
+              product_name: true,
+              variant_title: true,
+              sku: true,
+              quantity: true,
+              unit_price: true,
+              line_total: true,
+              product: {
+                select: {
+                  media: {
+                    select: { url: true },
+                    orderBy: { sort_order: "asc" },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          },
+          addresses: true,
+          tag_assignments: {
+            include: { tag: true },
+          },
+          // Assignee join so the mapper can project `assigned_user` with live
+          // data and no N+1 lookup (Requirement 8.5).
+          assigned_user: {
+            select: {
+              id: true,
+              name: true,
+              avatar_url: true,
+              deleted_at: true,
+              is_active: true,
+            },
+          },
         },
         skip: (page - 1) * limit,
         take: limit,
@@ -229,13 +476,120 @@ export class OrderService {
     ]);
 
     return {
-      data: data.map(mapOrderToDto),
+      data: data.map((order) => mapOrderToDto(order)),
       meta: {
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+  /**
+   * Computes per-status order counts for the orders list page status tabs.
+   * Uses a single grouped query — guaranteed by `prisma.order.groupBy` on `status`.
+   * Always returns all 11 ShipmentStatus keys (zero-filled when no matches).
+   * Honors all filters except `status` itself (each tab IS a status filter).
+   */
+  async getCounts(
+    storeId: number,
+    params: OrderCountsParams,
+  ): Promise<OrderCountsResult> {
+    // Build where via the shared helper — pass NO status field.
+    const where = this.buildOrderListWhere(storeId, {
+      search: params.search,
+      payment_status: params.payment_status,
+      source: params.source,
+      customer_id: params.customer_id,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      amount_min: params.amount_min,
+      amount_max: params.amount_max,
+      tag_ids: params.tag_ids,
+      assigned_user_id: params.assigned_user_id,
+    });
+
+    // Single grouped query — Requirement 6.1
+    const grouped = await prisma.order.groupBy({
+      by: ["status"],
+      where: where as Prisma.OrderWhereInput,
+      _count: { _all: true },
+    });
+
+    // Zero-fill all 11 statuses so the response shape is stable — Requirement 5.4
+    const by_status = ALL_SHIPMENT_STATUSES.reduce<
+      Record<ShipmentStatus, number>
+    >(
+      (acc, status) => {
+        acc[status] = 0;
+        return acc;
+      },
+      {} as Record<ShipmentStatus, number>,
+    );
+
+    let total = 0;
+    for (const row of grouped) {
+      by_status[row.status] = row._count._all;
+      total += row._count._all;
+    }
+
+    return { total, by_status };
+  }
+
+  /**
+   * Computes today's KPIs (count, revenue, AOV) and the all-time pending count.
+   *
+   * - "Today" is the local civil day in `Store.timezone`, converted to UTC bounds
+   *   via {@link getStoreDayBoundsUtc}. Falls back to "Africa/Tripoli" if the store
+   *   has no/invalid timezone.
+   * - Today metrics exclude `CANCELED` and `RETURNED`.
+   * - `pending_orders_count` is all-time (no date filter), `status = PENDING` only.
+   * - All money math uses `Prisma.Decimal` — never JS `number` arithmetic.
+   * - AOV is `0` when count is `0` (no division by zero).
+   */
+  async getKpis(storeId: number): Promise<OrderKpisResult> {
+    // 1) Resolve the store timezone (helper handles null/invalid via fallback)
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
+      select: { timezone: true },
+    });
+
+    const { startUtc, endUtc } = getStoreDayBoundsUtc(store?.timezone ?? null);
+
+    // 2) Two queries in parallel — both covered by index [store_id, status, placed_at]
+    const [todayAgg, pendingCount] = await Promise.all([
+      prisma.order.aggregate({
+        where: {
+          store_id: storeId,
+          placed_at: { gte: startUtc, lt: endUtc },
+          status: {
+            notIn: [ShipmentStatus.CANCELED, ShipmentStatus.RETURNED],
+          },
+        },
+        _count: { _all: true },
+        _sum: { grand_total: true },
+      }),
+      prisma.order.count({
+        where: {
+          store_id: storeId,
+          status: ShipmentStatus.PENDING,
+        },
+      }),
+    ]);
+
+    const ordersTodayCount = todayAgg._count._all;
+    const revenueToday = todayAgg._sum.grand_total ?? new Prisma.Decimal(0);
+
+    const aovToday =
+      ordersTodayCount === 0
+        ? new Prisma.Decimal(0)
+        : revenueToday.div(new Prisma.Decimal(ordersTodayCount));
+
+    return {
+      orders_today_count: ordersTodayCount,
+      revenue_today: revenueToday,
+      aov_today: aovToday,
+      pending_orders_count: pendingCount,
     };
   }
 
@@ -259,6 +613,20 @@ export class OrderService {
             phone: true,
           },
         },
+        tag_assignments: {
+          include: { tag: true },
+        },
+        // Assignee join so `mapOrderToDto` can project the current assignee
+        // with live data and no N+1 lookup (Requirement 8.5).
+        assigned_user: {
+          select: {
+            id: true,
+            name: true,
+            avatar_url: true,
+            deleted_at: true,
+            is_active: true,
+          },
+        },
       },
     });
 
@@ -266,7 +634,62 @@ export class OrderService {
       throw AppError.notFound("Order not found");
     }
 
-    return mapOrderToDto(order);
+    // Preload a live-user map for the timeline ASSIGNEE_CHANGED projection.
+    // Collect every distinct user id referenced by an ASSIGNEE_CHANGED payload
+    // (`payload.from?.id`, `payload.to?.id`) plus the current
+    // `Order.assigned_user_id`, then resolve them in a single query so the
+    // mapper performs O(1) lookups with no N+1 (Requirements 5.3, 5.4, 8.5).
+    const liveUserMap = await this.buildTimelineLiveUserMap(order);
+
+    return mapOrderToDto(order, liveUserMap);
+  }
+
+  /**
+   * Builds the `Map<userId, liveUserRow>` consumed by the timeline mapper to
+   * resolve `ASSIGNEE_CHANGED` snapshots against live user data. Collects ids
+   * from every `ASSIGNEE_CHANGED` payload side and the order's current
+   * `assigned_user_id`, then runs one `findMany`. Returns an empty map when no
+   * ids are referenced.
+   */
+  private async buildTimelineLiveUserMap(order: {
+    assigned_user_id?: number | null;
+    timeline?: unknown;
+  }): Promise<Map<number, Record<string, any>>> {
+    const ids = new Set<number>();
+
+    const addId = (value: unknown) => {
+      if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+        ids.add(value);
+      }
+    };
+
+    addId(order.assigned_user_id ?? null);
+
+    const timeline = Array.isArray(order.timeline) ? order.timeline : [];
+    for (const event of timeline as Array<Record<string, any>>) {
+      if (event?.event !== "ASSIGNEE_CHANGED") continue;
+      const payload = event.payload;
+      if (!payload || typeof payload !== "object") continue;
+      addId((payload as Record<string, any>).from?.id);
+      addId((payload as Record<string, any>).to?.id);
+    }
+
+    if (ids.size === 0) {
+      return new Map();
+    }
+
+    const users = await prisma.user.findMany({
+      where: { id: { in: Array.from(ids) } },
+      select: {
+        id: true,
+        name: true,
+        avatar_url: true,
+        deleted_at: true,
+        is_active: true,
+      },
+    });
+
+    return new Map(users.map((u) => [u.id, u as Record<string, any>]));
   }
 
   /**
@@ -275,6 +698,13 @@ export class OrderService {
    */
   async create(storeId: number, data: CreateOrderInput, actorUserId: number) {
     const createdOrder = await prisma.$transaction(async (tx) => {
+      // Resolve currency scale from store
+      const store = await tx.store.findUnique({
+        where: { id: storeId },
+        select: { currency_code: true },
+      });
+      const scale = getScale(store?.currency_code ?? "LYD");
+
       // Step 1: Validate customer if provided
       let customerName: string;
       let customerPhone: string;
@@ -295,7 +725,7 @@ export class OrderService {
       }
 
       // Step 2: Validate and resolve items
-      let subtotal = 0;
+      const lineTotals: Prisma.Decimal[] = [];
       const resolvedItems: ResolvedOrderItem[] = [];
 
       for (const item of data.items) {
@@ -334,11 +764,11 @@ export class OrderService {
           );
         }
 
-        const unitPrice = Number(
-          variant.price ?? variant.product.base_price ?? 0,
-        );
-        const lineTotal = unitPrice * item.quantity;
-        subtotal += lineTotal;
+        // Keep unitPrice as Prisma.Decimal — no Number(...) coercion
+        const unitPrice: Prisma.Decimal =
+          variant.price ?? variant.product.base_price ?? new Prisma.Decimal(0);
+        const lineTotal = Money.multiply(unitPrice, item.quantity, scale);
+        lineTotals.push(lineTotal);
 
         resolvedItems.push({
           product_id: item.product_id,
@@ -348,13 +778,16 @@ export class OrderService {
           sku: variant.sku,
           quantity: item.quantity,
           unit_price: unitPrice,
-          discount_total: 0,
+          discount_total: Money.zero(),
           line_total: lineTotal,
         });
       }
 
+      // Compute subtotal as sum of rounded line totals
+      const subtotal = Money.sum(lineTotals);
+
       // Step 3: Apply coupon if provided
-      let discountTotal = 0;
+      let discountTotal: Prisma.Decimal = Money.zero();
       let couponId: number | undefined;
 
       if (data.coupon_code) {
@@ -362,15 +795,22 @@ export class OrderService {
           storeId,
           data.coupon_code,
           data.customer_id ?? null,
-          subtotal,
+          subtotal as any,
         );
-        discountTotal = validation.discount_amount;
+        // validateCoupon returns discount_amount — use as Prisma.Decimal
+        discountTotal =
+          validation.discount_amount instanceof Prisma.Decimal
+            ? validation.discount_amount
+            : new Prisma.Decimal(validation.discount_amount);
         couponId = validation.coupon.id;
       }
 
-      // Step 4: Calculate totals
-      const shippingTotal = data.shipping_total ?? 0;
-      const grandTotal = subtotal - discountTotal + shippingTotal;
+      // Step 4: Calculate totals using Money utility
+      const shippingTotal = new Prisma.Decimal(data.shipping_total ?? 0);
+      const grandTotal = Money.max(
+        Money.round(subtotal.sub(discountTotal).add(shippingTotal), scale),
+        Money.zero(),
+      );
 
       // Step 5: Generate order number
       const orderNumber = await orderNumberGenerator.generate(
@@ -387,7 +827,7 @@ export class OrderService {
           source: data.source ?? "ADMIN",
           status: "PENDING",
           payment_status: "UNPAID",
-          currency_code: "LYD",
+          currency_code: store?.currency_code ?? "LYD",
           customer_name: customerName,
           customer_phone: customerPhone,
           subtotal,
@@ -461,7 +901,7 @@ export class OrderService {
             order_id: order.id,
             method: data.payment_method,
             amount: grandTotal,
-            currency_code: "LYD",
+            currency_code: store?.currency_code ?? "LYD",
           },
         });
       }
@@ -721,7 +1161,7 @@ export class OrderService {
         note,
       },
       include: {
-        actor: { select: { id: true, customer_name: true } },
+        actor: { select: { id: true, name: true } },
       },
     });
 
@@ -757,14 +1197,18 @@ export class OrderService {
         take: limit,
         orderBy: { created_at: "desc" },
         include: {
-          actor: { select: { id: true, customer_name: true } },
+          actor: { select: { id: true, name: true } },
         },
       }),
       prisma.orderTimeline.count({ where }),
     ]);
 
+    // Preload the live-user map so ASSIGNEE_CHANGED events on this page project
+    // their `from`/`to` snapshots against live user data (Requirements 5.3–5.5).
+    const liveUserMap = await this.buildTimelineLiveUserMap({ timeline: data });
+
     return {
-      data: data.map(mapOrderTimelineToDto),
+      data: data.map((event) => mapOrderTimelineToDto(event, liveUserMap)),
       meta: {
         total,
         page,
@@ -772,6 +1216,322 @@ export class OrderService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+  async updateOrderSource(
+    storeId: number,
+    orderId: number,
+    source: OrderSource,
+    actorUserId: number,
+  ) {
+    await prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId, store_id: storeId },
+        select: {
+          id: true,
+          store_id: true,
+          source: true,
+        },
+      });
+
+      if (!order) {
+        auditSourceRejection("ORDER_NOT_FOUND", {
+          store_id: storeId,
+          actor_user_id: actorUserId,
+          order_id: orderId,
+          target_source: source,
+        });
+        throw AppError.notFound("Order not found: ORDER_NOT_FOUND");
+      }
+
+      if (order.source === source) {
+        return;
+      }
+
+      await tx.order.update({
+        where: { id_store_id: { id: orderId, store_id: storeId } },
+        data: { source },
+      });
+
+      await tx.orderTimeline.create({
+        data: {
+          store_id: storeId,
+          order_id: orderId,
+          actor_user_id: actorUserId,
+          event: "SOURCE_CHANGED",
+          payload: { from: order.source, to: source },
+        },
+      });
+    });
+
+    return this.getById(storeId, orderId);
+  }
+  /**
+   * Returns `true` iff `userId` is an Eligible_Assignee for `storeId`.
+   *
+   * A user is eligible iff there exists a `StoreMembership` row with
+   * `store_id = storeId`, `user_id = userId`, and `status = ACTIVE`, AND the
+   * linked `User` row is live (`deleted_at IS NULL`) and active
+   * (`is_active = true`). The predicate is expressed as a single inner-joined
+   * lookup (`StoreMembership` + nested `user` where-filter) so the database
+   * enforces the join — no second round-trip and no race window.
+   *
+   * Reused by `listEligibleAssignees` (returns the rows) and by the orders
+   * list/counts filter validation (asserts each requested id is eligible).
+   *
+   * When called from inside `assignAssignee`'s `prisma.$transaction(...)`, the
+   * optional `client` argument threads the transaction client through so the
+   * eligibility read shares the same transaction snapshot as the mutation;
+   * callers outside a transaction omit it and the read runs on the base
+   * `prisma` client.
+   *
+   * Validates: Requirements 2.1, 18.2
+   */
+  private async isEligibleAssignee(
+    storeId: number,
+    userId: number,
+    client: Prisma.TransactionClient = prisma,
+  ): Promise<boolean> {
+    const membership = await client.storeMembership.findFirst({
+      where: {
+        store_id: storeId,
+        user_id: userId,
+        status: MembershipStatus.ACTIVE,
+        user: {
+          deleted_at: null,
+          is_active: true,
+        },
+      },
+      select: { id: true },
+    });
+
+    return membership !== null;
+  }
+
+  /**
+   * Lists the Eligible_Assignees of `storeId`.
+   *
+   * Returns every user `U` for which there exists a `StoreMembership` with
+   * `store_id = storeId`, `status = ACTIVE`, AND `U.deleted_at IS NULL` AND
+   * `U.is_active = true` — the same predicate as {@link isEligibleAssignee}.
+   * Each row is projected through `mapEligibleAssigneeToDto` to `{ id, name,
+   * avatar_url }`; no sensitive field (`email`, `phone`, `password`, …) is
+   * ever returned (Requirement 2.2 / 7.2).
+   *
+   * The requester's own user record is NOT excluded — when the requester is an
+   * Eligible_Assignee of the store, they appear in the list like any other
+   * member (Requirement 7.5, no self-exclusion).
+   *
+   * Results are ordered by `name` ascending using a case-insensitive,
+   * locale-aware comparison. Prisma/Postgres `orderBy` cannot express
+   * `lower(name)` directly without a raw collation, so the rows are sorted in
+   * application code after the fetch (Requirement 2.3).
+   *
+   * Validates: Requirements 2.1, 2.2, 2.3, 7.2, 7.5, 18.2
+   */
+  async listEligibleAssignees(
+    storeId: number,
+  ): Promise<Array<{ id: number; name: string; avatar_url: string | null }>> {
+    const memberships = await prisma.storeMembership.findMany({
+      where: {
+        store_id: storeId,
+        status: MembershipStatus.ACTIVE,
+        user: {
+          deleted_at: null,
+          is_active: true,
+        },
+      },
+      select: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar_url: true,
+          },
+        },
+      },
+    });
+
+    return memberships
+      .map((membership) => mapEligibleAssigneeToDto(membership.user))
+      .sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+      );
+  }
+
+  /**
+   * Sets `Order.assigned_user_id` to `userId` (or clears it with `null`) for
+   * the order identified by `(storeId, orderId)`, recording the change as a
+   * single immutable `ASSIGNEE_CHANGED` timeline event.
+   *
+   * The entire operation runs inside one `prisma.$transaction(...)` so the
+   * order read, the terminal-status guard, the eligibility check, the snapshot
+   * capture, the `UPDATE Order`, and the `INSERT OrderTimeline` are atomic and
+   * race-free. Reading `status` and `assigned_user_id` inside the transaction
+   * closes the window described in Requirement 4.2 where a concurrent
+   * transition to a Terminal_Status could otherwise slip past the guard.
+   *
+   * Behavior:
+   * - Throws `ORDER_NOT_FOUND` (404) when no order matches `(orderId, storeId)`
+   *   — this covers both a non-existent order and a cross-store target
+   *   (Requirements 3.5, 18.1).
+   * - Throws `ORDER_TERMINAL_STATUS` (409) when the order's `status` is one of
+   *   `CANCELED`, `RETURNED`, `DELIVERED` (Requirements 4.1, 4.2). The existing
+   *   `assigned_user_id` is preserved — never auto-cleared (Requirement 4.3).
+   * - Throws `ASSIGNEE_NOT_ELIGIBLE` (400) when `userId` is non-null but the
+   *   user is not an Eligible_Assignee of the store (Requirement 3.6).
+   * - No-op short-circuit: when `userId === order.assigned_user_id` (including
+   *   `null === null`), returns the current DTO WITHOUT writing the row or
+   *   appending a timeline entry, leaving `updated_at` untouched
+   *   (Requirements 3.4, 3.8).
+   * - Otherwise: captures `{ id, name }` snapshots for the `from` and `to`
+   *   sides, updates `assigned_user_id` (Prisma's `@updatedAt` bumps
+   *   `updated_at` automatically — Requirements 3.1, 3.2, 3.8), and inserts
+   *   exactly one `ASSIGNEE_CHANGED` timeline row with
+   *   `payload = { from, to }` and `actor_user_id = actorUserId`
+   *   (Requirements 3.3, 5.1, 5.2).
+   *
+   * `Order.notes_internal` is never mutated as part of an assignment; the
+   * timeline event is the only record of the change (Requirement 5.6).
+   *
+   * Every rejection path emits a single structured `ORDER_ASSIGNEE_REJECTED`
+   * audit log via {@link auditAssigneeRejection} before the `AppError` is
+   * thrown. Audit logs are operational only and are never written to
+   * `OrderTimeline`.
+   *
+   * Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.8, 4.1, 4.2, 4.3,
+   * 5.1, 5.2, 5.6, 18.1
+   */
+  async assignAssignee(
+    storeId: number,
+    orderId: number,
+    userId: number | null,
+    actorUserId: number,
+  ) {
+    await prisma.$transaction(async (tx) => {
+      // 1. Read the order inside the transaction. Selecting `store_id` keeps
+      //    the cross-store guard explicit even though the where-clause already
+      //    scopes by it.
+      const order = await tx.order.findFirst({
+        where: { id: orderId, store_id: storeId },
+        select: {
+          id: true,
+          store_id: true,
+          status: true,
+          assigned_user_id: true,
+        },
+      });
+
+      // 2. Cross-tenant / not-found guard (Requirements 3.5, 18.1).
+      if (!order) {
+        auditAssigneeRejection("ORDER_NOT_FOUND", {
+          store_id: storeId,
+          actor_user_id: actorUserId,
+          order_id: orderId,
+          target_user_id: userId,
+        });
+        throw AppError.notFound("Order not found: ORDER_NOT_FOUND");
+      }
+
+      // 3. Terminal-status guard, read inside the transaction to prevent the
+      //    race in Requirement 4.2 (Requirements 4.1, 4.2, 4.3).
+      if (ASSIGNEE_TERMINAL_STATUSES.has(order.status)) {
+        auditAssigneeRejection("ORDER_TERMINAL_STATUS", {
+          store_id: storeId,
+          actor_user_id: actorUserId,
+          order_id: orderId,
+          target_user_id: userId,
+          was_terminal_status: true,
+        });
+        throw AppError.conflict(
+          "Order is in a terminal status: ORDER_TERMINAL_STATUS",
+        );
+      }
+
+      // 4. Eligibility guard for non-null targets (Requirement 3.6).
+      if (userId !== null) {
+        const eligible = await this.isEligibleAssignee(storeId, userId, tx);
+        if (!eligible) {
+          auditAssigneeRejection("ASSIGNEE_NOT_ELIGIBLE", {
+            store_id: storeId,
+            actor_user_id: actorUserId,
+            order_id: orderId,
+            target_user_id: userId,
+          });
+          throw AppError.badRequest(
+            "User is not an eligible assignee: ASSIGNEE_NOT_ELIGIBLE",
+          );
+        }
+      }
+
+      // 5. No-op short-circuit (Requirements 3.4, 3.8). When the requested
+      //    value already equals the current one (including `null === null`),
+      //    leave the row and timeline untouched and do NOT bump `updated_at`.
+      if (userId === order.assigned_user_id) {
+        return;
+      }
+
+      // 6. Capture both snapshots from live user rows inside the transaction.
+      //    A snapshot is `{ id, name }` for a non-null side, or `null`.
+      const fromSnapshot = await this.buildAssigneeSnapshot(
+        order.assigned_user_id,
+        tx,
+      );
+      const toSnapshot = await this.buildAssigneeSnapshot(userId, tx);
+
+      // 7. Update the assignee. Prisma's `@updatedAt` on `Order.updated_at`
+      //    bumps the timestamp automatically as part of this write
+      //    (Requirements 3.1, 3.2, 3.8). `notes_internal` is never touched
+      //    (Requirement 5.6).
+      await tx.order.update({
+        where: { id_store_id: { id: orderId, store_id: storeId } },
+        data: { assigned_user_id: userId },
+      });
+
+      // 8. Append exactly one immutable ASSIGNEE_CHANGED timeline row in the
+      //    same transaction (Requirements 3.3, 5.1, 5.2).
+      await tx.orderTimeline.create({
+        data: {
+          store_id: storeId,
+          order_id: orderId,
+          actor_user_id: actorUserId,
+          event: "ASSIGNEE_CHANGED",
+          payload: { from: fromSnapshot, to: toSnapshot },
+        },
+      });
+    });
+
+    // 9. Return the refreshed DTO (current assignee + timeline) — read outside
+    //    the mutation transaction via the shared loader.
+    return this.getById(storeId, orderId);
+  }
+
+  /**
+   * Builds an Assignee_Snapshot (`{ id, name } | null`) for one side of an
+   * `ASSIGNEE_CHANGED` event. Returns `null` when `userId` is `null`. For a
+   * non-null id, reads `User.name` from the live row so the snapshot captures
+   * the name at the moment the timeline row is written (Requirement 5.2). If
+   * the user row cannot be found (e.g. a concurrently hard-deleted user), the
+   * snapshot falls back to the id with an empty name rather than failing the
+   * transaction.
+   */
+  private async buildAssigneeSnapshot(
+    userId: number | null,
+    tx: Prisma.TransactionClient,
+  ): Promise<{ id: number; name: string } | null> {
+    if (userId === null) {
+      return null;
+    }
+
+    const user = await tx.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true },
+    });
+
+    if (!user) {
+      return { id: userId, name: "" };
+    }
+
+    return { id: user.id, name: user.name };
   }
 }
 

@@ -2,6 +2,7 @@ import prisma from "../../configs/prisma";
 import { Prisma } from "../../../generated/prisma";
 import { AppError } from "../../utils/AppError";
 import { AddToCartInput } from "../../types/storefront.types";
+import { Money, getScale } from "../../utils/money";
 
 /** Maximum quantity allowed per cart line item */
 const MAX_ITEM_QUANTITY = 9999;
@@ -401,48 +402,64 @@ export class StorefrontCartService {
 
   /**
    * Recalculates cart totals:
-   * - subtotal = sum(unit_price * quantity) for all items
-   * - grand_total = subtotal - discount_total + shipping_total
+   * - subtotal = sum of rounded line totals (unit_price * quantity, rounded to currency scale)
+   * - grand_total = max(subtotal - discount_total + shipping_total, 0), rounded to currency scale
+   *
+   * Uses the Money utility for all arithmetic to ensure HALF_UP rounding at currency scale,
+   * producing results identical to the OrderService calculation path.
    *
    * Accepts a Prisma transaction client as first param for use within transactions.
    *
-   * Requirements: 6.9, 6.10
+   * Requirements: 6.9, 6.10, 2.4, 2.5
    */
   async recalculateCartTotals(
     tx: PrismaTransactionClient,
     storeId: number,
     cartId: number,
   ) {
+    // Get current cart to read currency_code, discount_total, and shipping_total
+    const currentCart = await (tx as any).cart.findFirst({
+      where: { id: cartId, store_id: storeId },
+    });
+
+    // Resolve currency scale from the cart's currency_code
+    const scale = getScale(currentCart?.currency_code ?? "LYD");
+
     // Get all items in the cart
     const items = await (tx as any).cartItem.findMany({
       where: { cart_id: cartId, store_id: storeId },
     });
 
-    // Calculate subtotal = sum(unit_price * quantity)
-    let subtotal = new Prisma.Decimal(0);
-    for (const item of items) {
-      const itemTotal = new Prisma.Decimal(item.unit_price.toString()).mul(
-        item.quantity,
-      );
-      subtotal = subtotal.add(itemTotal);
-    }
+    // Calculate line totals with proper rounding via Money.multiply
+    const lineTotals: Prisma.Decimal[] = items.map(
+      (item: { unit_price: Prisma.Decimal; quantity: number }) =>
+        Money.multiply(
+          new Prisma.Decimal(item.unit_price.toString()),
+          item.quantity,
+          scale,
+        ),
+    );
 
-    // Get current cart to read discount_total and shipping_total
-    const currentCart = await (tx as any).cart.findFirst({
-      where: { id: cartId, store_id: storeId },
-    });
+    // Subtotal = sum of rounded line totals
+    const subtotal = Money.sum(lineTotals);
 
     const discountTotal = currentCart
-      ? new Prisma.Decimal(currentCart.discount_total.toString())
-      : new Prisma.Decimal(0);
+      ? Money.round(
+          new Prisma.Decimal(currentCart.discount_total.toString()),
+          scale,
+        )
+      : Money.zero();
     const shippingTotal = currentCart
-      ? new Prisma.Decimal(currentCart.shipping_total.toString())
-      : new Prisma.Decimal(0);
+      ? Money.round(
+          new Prisma.Decimal(currentCart.shipping_total.toString()),
+          scale,
+        )
+      : Money.zero();
 
-    // grand_total = subtotal - discount_total + shipping_total
-    const grandTotal = Prisma.Decimal.max(
-      subtotal.sub(discountTotal).add(shippingTotal),
-      new Prisma.Decimal(0),
+    // grand_total = max(subtotal - discount_total + shipping_total, 0), rounded to scale
+    const grandTotal = Money.max(
+      Money.round(subtotal.sub(discountTotal).add(shippingTotal), scale),
+      Money.zero(),
     );
 
     // Update cart totals

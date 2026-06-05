@@ -1,12 +1,64 @@
 import { asArray, money, RawRecord, timestamp } from "./mapper.utils";
 
+/**
+ * Projected shape of one side (`from` / `to`) of an `ASSIGNEE_CHANGED`
+ * timeline event after the mapper resolves it against live user data.
+ * `null` represents the "no assignee" side (Requirement 5.5).
+ */
+export type AssigneeTimelineSnapshot = null | {
+  id: number;
+  name: string;
+  avatar_url: string | null;
+  /** True when the live user could not be resolved (deleted / inactive). */
+  is_deleted: boolean;
+};
+
 function actorName(actor: RawRecord | null | undefined): string | null {
   if (!actor) {
     return null;
   }
 
-  const name = [actor.customer_name, actor.last_name].filter(Boolean).join(" ");
-  return actor.customer_name ? String(actor.customer_name) : null;
+  return actor.name ? String(actor.name) : null;
+}
+
+/**
+ * Projects one side of an `ASSIGNEE_CHANGED` payload.
+ *
+ * - When the snapshot side is `null` ("no assignee"), returns `null` and does
+ *   NOT mark `is_deleted` (Requirement 5.5).
+ * - When the snapshot references a live user that exists with
+ *   `deleted_at IS NULL` AND `is_active = true`, prefers the live `name` and
+ *   `avatar_url` (Requirement 5.3).
+ * - Otherwise (no live row, soft-deleted, or inactive), falls back to the
+ *   snapshot `name`, sets `avatar_url` to `null`, and flags `is_deleted = true`
+ *   (Requirement 5.4).
+ */
+function projectAssigneeSide(
+  snapshot: RawRecord | null | undefined,
+  liveUserById: Map<number, RawRecord>,
+): AssigneeTimelineSnapshot {
+  if (!snapshot) {
+    return null;
+  }
+
+  const id = snapshot.id as number;
+  const live = liveUserById.get(id);
+
+  if (live && live.deleted_at == null && live.is_active !== false) {
+    return {
+      id,
+      name: live.name as string,
+      avatar_url: (live.avatar_url as string | null | undefined) ?? null,
+      is_deleted: false,
+    };
+  }
+
+  return {
+    id,
+    name: snapshot.name as string,
+    avatar_url: null,
+    is_deleted: true,
+  };
 }
 
 function mapCustomer(customer: RawRecord | null | undefined) {
@@ -42,6 +94,15 @@ function mapAddress(address: RawRecord | null | undefined) {
 }
 
 function mapOrderItem(item: RawRecord) {
+  // Resolve product image: first ProductMedia by sort_order, or null.
+  const productMedia = item.product
+    ? asArray((item.product as RawRecord).media)
+    : [];
+  const productImage =
+    productMedia.length > 0 && typeof productMedia[0].url === "string"
+      ? (productMedia[0].url as string)
+      : null;
+
   return {
     id: item.id,
     product_id: item.product_id,
@@ -53,6 +114,7 @@ function mapOrderItem(item: RawRecord) {
     unit_price: money(item.unit_price),
     discount_amount: money(item.discount_amount ?? item.discount_total),
     total_price: money(item.total_price ?? item.line_total),
+    product_image: productImage,
     metadata: item.metadata ?? null,
   };
 }
@@ -89,7 +151,49 @@ function mapShipment(shipment: RawRecord) {
   };
 }
 
-export function mapOrderTimelineToDto(event: RawRecord) {
+export function mapOrderTimelineToDto(
+  event: RawRecord,
+  liveUserMap: Map<number, RawRecord> = new Map(),
+) {
+  // For ASSIGNEE_CHANGED events, project the `from`/`to` snapshot sides against
+  // the preloaded live-user map. Non-ASSIGNEE_CHANGED events keep the raw
+  // payload byte-for-byte (Requirements 5.3, 5.4, 5.5).
+  let payload = event.payload ?? null;
+  if (
+    event.event === "ASSIGNEE_CHANGED" &&
+    payload &&
+    typeof payload === "object"
+  ) {
+    const raw = payload as RawRecord;
+    payload = {
+      ...raw,
+      from: projectAssigneeSide(
+        raw.from as RawRecord | null | undefined,
+        liveUserMap,
+      ),
+      to: projectAssigneeSide(
+        raw.to as RawRecord | null | undefined,
+        liveUserMap,
+      ),
+    };
+  }
+
+  // For SOURCE_CHANGED events, project the `from`/`to` sides to plain enum
+  // strings (no live-user resolution unlike ASSIGNEE_CHANGED). The explicit
+  // projection ensures a malformed payload yields `{ from: null, to: null }`
+  // rather than leaking unexpected fields (Requirements 6.4, 9.1, 9.2, 9.3).
+  if (
+    event.event === "SOURCE_CHANGED" &&
+    payload &&
+    typeof payload === "object"
+  ) {
+    const raw = payload as RawRecord;
+    payload = {
+      from: (raw.from as string | null) ?? null,
+      to: (raw.to as string | null) ?? null,
+    };
+  }
+
   return {
     id: event.id,
     event: event.event,
@@ -99,7 +203,7 @@ export function mapOrderTimelineToDto(event: RawRecord) {
     to_status: event.to_status ?? null,
     actor_user_id: event.actor_user_id ?? null,
     actor_name: event.actor_name ?? actorName(event.actor),
-    payload: event.payload ?? null,
+    payload,
     created_at: timestamp(event.created_at),
   };
 }
@@ -113,11 +217,48 @@ function mapInternalNote(event: ReturnType<typeof mapOrderTimelineToDto>) {
   };
 }
 
-export function mapOrderToDto(order: RawRecord) {
+export function mapOrderToDto(
+  order: RawRecord,
+  liveUserMap: Map<number, RawRecord> = new Map(),
+) {
   const addresses = asArray(order.addresses).map(mapAddress).filter(Boolean);
   const payments = asArray(order.payments).map(mapPayment);
   const shipments = asArray(order.shipments).map(mapShipment);
-  const timeline = asArray(order.timeline).map(mapOrderTimelineToDto);
+  const timeline = asArray(order.timeline).map((event) =>
+    mapOrderTimelineToDto(event, liveUserMap),
+  );
+
+  // Current assignee projection (Requirement 8.1–8.4). Resolve to null when the
+  // FK is null, the linked user is soft-deleted (`deleted_at IS NOT NULL`), or
+  // the user is inactive (`is_active = false`).
+  const assignedUser = (() => {
+    const u = order.assigned_user as RawRecord | null | undefined;
+    if (!u) return null;
+    if (u.deleted_at != null) return null;
+    if (u.is_active === false) return null;
+    return {
+      id: u.id as number,
+      name: u.name as string,
+      avatar_url: (u.avatar_url as string | null | undefined) ?? null,
+    };
+  })();
+
+  // Tags: project each `OrderTagAssignment.tag` to the summary shape, sorted
+  // ascending by tag.created_at (older tags first). Always an array — empty
+  // when the include is missing or no assignments exist.
+  const tags = asArray(order.tag_assignments)
+    .map((a) => a.tag as RawRecord | null | undefined)
+    .filter((t): t is RawRecord => Boolean(t))
+    .sort(
+      (a, b) =>
+        new Date(a.created_at as string).getTime() -
+        new Date(b.created_at as string).getTime(),
+    )
+    .map((t) => ({
+      id: t.id as number,
+      name: t.name as string,
+      color_preset: t.color_preset as string,
+    }));
 
   const shippingAddress =
     mapAddress(order.shipping_address) ??
@@ -148,6 +289,7 @@ export function mapOrderToDto(order: RawRecord) {
     customer_phone: order.customer_phone,
     customer_email: order.customer_email ?? null,
     customer: mapCustomer(order.customer),
+    assigned_user: assignedUser,
     shipping_address: shippingAddress,
     billing_address: billingAddress,
     addresses,
@@ -161,6 +303,7 @@ export function mapOrderToDto(order: RawRecord) {
     payments,
     shipments,
     timeline,
+    tags,
     created_at: timestamp(order.created_at ?? order.placed_at),
     placed_at: timestamp(order.placed_at ?? order.created_at),
     updated_at: timestamp(order.updated_at),

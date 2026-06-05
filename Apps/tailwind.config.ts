@@ -1,12 +1,46 @@
 import type { Config } from "tailwindcss";
 import tailwindcssAnimate from "tailwindcss-animate";
 
+// Color presets used by the order-tags feature. The class strings live in
+// `src/lib/constants/orderTagColors.ts` as object values that are read via
+// `ORDER_TAG_COLORS[preset].chip` / `.swatch`. Tailwind's JIT scanner can't
+// see them as inline literals from a JSX context, so we safelist them here.
+// Keep this list in sync with `OrderTagColorPreset` in
+// `src/types/orderTag.types.ts`.
+const ORDER_TAG_COLOR_NAMES = [
+  "slate",
+  "gray",
+  "red",
+  "orange",
+  "amber",
+  "yellow",
+  "green",
+  "emerald",
+  "teal",
+  "sky",
+  "blue",
+  "indigo",
+  "purple",
+  "pink",
+] as const;
+
 const config: Config = {
   darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
+  safelist: [
+    // Order tag chip + swatch variants — see comment above.
+    ...ORDER_TAG_COLOR_NAMES.flatMap((color) => [
+      `bg-${color}-100`,
+      `text-${color}-700`,
+      `text-${color}-800`, // amber + yellow chips use 800 for contrast
+      `ring-${color}-200`,
+      `bg-${color}-500`,
+    ]),
   ],
   theme: {
     extend: {

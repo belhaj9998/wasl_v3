@@ -14,6 +14,8 @@ import { useForm } from "react-hook-form";
 import { Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import Image from "next/image";
+
 import { useRouter } from "next/navigation";
 import {
   FolderTree,
@@ -39,6 +41,7 @@ import {
   reorderCategories,
 } from "@/lib/store/slices/categories.thunks";
 import { invalidateCategoriesListCache } from "@/lib/store/slices/categories.slice";
+import { SingleImageUploader } from "@/components/shared/SingleImageUploader";
 import { useStore } from "@/hooks/useStore";
 import { buildCategoryTree } from "@/lib/utils/permissions";
 import { categorySchema } from "@/lib/validators/category.schema";
@@ -77,7 +80,7 @@ import type { Category } from "@/types";
 
 type CategoryStatusFilter = "all" | "published" | "hidden";
 
-const CATEGORY_LIST_PARAMS = { limit: 200 };
+const CATEGORY_LIST_PARAMS = { limit: 100 };
 
 interface CategoryRow {
   category: Category;
@@ -93,7 +96,7 @@ const categoryFormSchema = z.object({
   slug: categorySchema.shape.slug,
   description: z.string().nullish(),
   parent_id: z.string().nullish(),
-  image_url: z.string().url().nullish().or(z.literal("")),
+  image_url: z.string().nullish().or(z.literal("")),
   is_active: z.boolean().optional(),
 });
 
@@ -124,7 +127,7 @@ function CategoryFormDialog({
   const [serverErrors, setServerErrors] = useState<string[]>([]);
   const t = useTranslations("categories");
   const tCommon = useTranslations("common");
-
+  const { currentStoreId } = useStore();
   const {
     control,
     handleSubmit,
@@ -286,12 +289,26 @@ function CategoryFormDialog({
             placeholder={t("parentPlaceholder")}
           />
 
-          <FormField
+          <Controller
             control={control}
             name="image_url"
-            label={t("imageUrlLabel")}
-            placeholder="https://example.com/image.jpg"
-            description={t("imageUrlDescription")}
+            render={({ field, fieldState }) => (
+              <div className="space-y-2">
+                <UILabel className="text-sm font-medium">صورة التصنيف</UILabel>
+                <SingleImageUploader
+                  value={field.value ?? null}
+                  onChange={(url) => field.onChange(url)}
+                  storeId={currentStoreId ?? 0}
+                  alt="category image"
+                  disabled={!currentStoreId}
+                />
+                {fieldState.error?.message && (
+                  <p className="text-xs text-destructive">
+                    {fieldState.error.message}
+                  </p>
+                )}
+              </div>
+            )}
           />
 
           <Controller
@@ -373,7 +390,8 @@ function CategoryTableRow({
   return (
     <div
       className={cn(
-        "grid grid-cols-[minmax(0,1fr)_120px_130px_48px] items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-colors",
+        "grid grid-cols-[64px_minmax(0,1fr)_120px_130px_48px] items-center gap-3 rounded-lg border bg-card px-4 py-3 transition-colors",
+
         "hover:border-primary/35 hover:bg-accent/30",
         isDragOver && "border-primary bg-primary/5",
       )}
@@ -389,6 +407,24 @@ function CategoryTableRow({
       }}
       onDrop={onDrop}
     >
+      <div className="flex items-center justify-center">
+        <div className="relative h-10 w-10 overflow-hidden rounded-md bg-muted">
+          {category.image_url ? (
+            <Image
+              src={category.image_url}
+              alt={category.name}
+              fill
+              sizes="40px"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+              <FolderTree className="h-4 w-4" />
+            </div>
+          )}
+        </div>
+      </div>
+
       <div
         className="flex min-w-0 items-center gap-2"
         style={{ paddingInlineStart: `${level * 24}px` }}
@@ -527,8 +563,7 @@ export default function CategoriesPage() {
   }, [categoryTree]);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState<CategoryStatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<CategoryStatusFilter>("all");
 
   const visibleCategoryRows = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -553,8 +588,7 @@ export default function CategoriesPage() {
       all: categoryRows.length,
       published: categoryRows.filter(({ category }) => category.is_active)
         .length,
-      hidden: categoryRows.filter(({ category }) => !category.is_active)
-        .length,
+      hidden: categoryRows.filter(({ category }) => !category.is_active).length,
     }),
     [categoryRows],
   );
@@ -923,7 +957,8 @@ export default function CategoriesPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-[minmax(0,1fr)_120px_130px_48px] rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+          <div className="grid grid-cols-[64px_minmax(0,1fr)_120px_130px_48px] gap-3 rounded-lg bg-muted px-4 py-3 text-sm font-semibold text-muted-foreground">
+            <span className="text-center">الصورة</span>
             <span className="text-start">اسم التصنيف</span>
             <span className="text-center">عدد المنتجات</span>
             <span className="text-center">الحالة</span>
@@ -942,38 +977,40 @@ export default function CategoriesPage() {
                 لا توجد فئات مطابقة للبحث أو الفلتر.
               </div>
             ) : (
-              visibleCategoryRows.map(({ category, level, index, parentId }) => (
-                <CategoryTableRow
-                  key={category.id}
-                  category={category}
-                  level={level}
-                  index={index}
-                  parentId={parentId}
-                  dragOverId={dragOverId}
-                  onAddChild={(cat) =>
-                    setFormDialog({
-                      open: true,
-                      category: null,
-                      parentId: cat.id,
-                    })
-                  }
-                  onEdit={(cat) =>
-                    setFormDialog({
-                      open: true,
-                      category: cat,
-                      parentId: null,
-                    })
-                  }
-                  onDelete={(cat) =>
-                    setDeleteDialog({ open: true, category: cat })
-                  }
-                  onManageProducts={handleManageProducts}
-                  onToggleActive={handleToggleActive}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                />
-              ))
+              visibleCategoryRows.map(
+                ({ category, level, index, parentId }) => (
+                  <CategoryTableRow
+                    key={category.id}
+                    category={category}
+                    level={level}
+                    index={index}
+                    parentId={parentId}
+                    dragOverId={dragOverId}
+                    onAddChild={(cat) =>
+                      setFormDialog({
+                        open: true,
+                        category: null,
+                        parentId: cat.id,
+                      })
+                    }
+                    onEdit={(cat) =>
+                      setFormDialog({
+                        open: true,
+                        category: cat,
+                        parentId: null,
+                      })
+                    }
+                    onDelete={(cat) =>
+                      setDeleteDialog({ open: true, category: cat })
+                    }
+                    onManageProducts={handleManageProducts}
+                    onToggleActive={handleToggleActive}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  />
+                ),
+              )
             )}
           </div>
         </div>

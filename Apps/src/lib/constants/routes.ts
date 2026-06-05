@@ -51,6 +51,7 @@ export const ROUTES = {
   STOREFRONT: {
     HOME: (domain: string) => `/${domain}`,
     PRODUCTS: (domain: string) => `/${domain}/products`,
+    CATEGORIES_LIST: (domain: string) => `/${domain}/categories`,
     PRODUCT_DETAIL: (domain: string, slug: string) =>
       `/${domain}/products/${slug}`,
     CATEGORY: (domain: string, slug: string) => `/${domain}/categories/${slug}`,

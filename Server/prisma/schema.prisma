@@ -79,10 +79,12 @@ enum CartStatus {
 enum OrderSource {
   STOREFRONT
   ADMIN
-  MANUAL
+  WHATSAPP
+  PHONE
   INSTAGRAM
   FACEBOOK
   TIKTOK
+  OTHER
 }
 
 // حالة موحدة تغطي دورة حياة الطلب والشحن بالكامل
@@ -139,6 +141,23 @@ enum DiscountType {
   FIXED
 }
 
+enum OrderTagColorPreset {
+  slate
+  gray
+  red
+  orange
+  amber
+  yellow
+  green
+  emerald
+  teal
+  sky
+  blue
+  indigo
+  purple
+  pink
+}
+
 model User {
   id                     Int                 @id @default(autoincrement())
   name                   String
@@ -159,6 +178,10 @@ model User {
   inventory_actions      InventoryMovement[]
   order_actions          OrderTimeline[]
   refresh_tokens         RefreshToken[]
+  // Back-relation for the order-assigned-user feature. Hard-deleting a user
+  // sets every Order.assigned_user_id referencing them to NULL via the
+  // matching `onDelete: SetNull` on the Order side.
+  assigned_orders        Order[]             @relation("OrderAssignee")
 }
 
 model RefreshToken {
@@ -174,51 +197,53 @@ model RefreshToken {
 }
 
 model Store {
-  id                  Int                  @id @default(autoincrement())
-  name                String
-  domain              String               @unique
-  custom_domain       String?              @unique
-  status              StoreStatus          @default(DRAFT)
-  currency_code       String               @default("LYD")
-  locale              String               @default("ar-LY")
-  timezone            String               @default("Africa/Tripoli")
-  logo                String?
-  favicon             String?
-  description         String?
-  facebook_url        String?
-  instagram_url       String?
-  tiktok_url          String?
-  support_email       String?
-  support_phone       String?
-  meta_title          String?
-  meta_description    String?
-  deleted_at          DateTime?
-  created_at          DateTime             @default(now())
-  updated_at          DateTime             @updatedAt
-  memberships         StoreMembership[]
-  roles               StoreRole[]
-  subscription        StoreSubscription?
-  categories          Category[]
-  products            Product[]
-  product_media       ProductMedia[]
-  product_options     ProductOption[]
-  product_option_vals ProductOptionValue[]
-  variants            ProductVariant[]
-  customers           Customer[]
-  customer_addresses  CustomerAddress[]
-  carts               Cart[]
-  cart_items          CartItem[]
-  orders              Order[]
-  order_items         OrderItem[]
-  coupons             Coupon[]
-  coupon_usages       CouponUsage[]
-  inventories         Inventory[]
-  inventory_moves     InventoryMovement[]
-  variant_links       VariantOptionValue[]
-  order_addresses     OrderAddress[]
-  payment_txns        PaymentTransaction[]
-  shipments           Shipment[]
-  order_timeline      OrderTimeline[]
+  id                    Int                  @id @default(autoincrement())
+  name                  String
+  domain                String               @unique
+  custom_domain         String?              @unique
+  status                StoreStatus          @default(DRAFT)
+  currency_code         String               @default("LYD")
+  locale                String               @default("ar-LY")
+  timezone              String               @default("Africa/Tripoli")
+  logo                  String?
+  favicon               String?
+  description           String?
+  facebook_url          String?
+  instagram_url         String?
+  tiktok_url            String?
+  support_email         String?
+  support_phone         String?
+  meta_title            String?
+  meta_description      String?
+  deleted_at            DateTime?
+  created_at            DateTime             @default(now())
+  updated_at            DateTime             @updatedAt
+  memberships           StoreMembership[]
+  roles                 StoreRole[]
+  subscription          StoreSubscription?
+  categories            Category[]
+  products              Product[]
+  product_media         ProductMedia[]
+  product_options       ProductOption[]
+  product_option_vals   ProductOptionValue[]
+  variants              ProductVariant[]
+  customers             Customer[]
+  customer_addresses    CustomerAddress[]
+  carts                 Cart[]
+  cart_items            CartItem[]
+  orders                Order[]
+  order_items           OrderItem[]
+  coupons               Coupon[]
+  coupon_usages         CouponUsage[]
+  inventories           Inventory[]
+  inventory_moves       InventoryMovement[]
+  variant_links         VariantOptionValue[]
+  order_addresses       OrderAddress[]
+  payment_txns          PaymentTransaction[]
+  shipments             Shipment[]
+  order_timeline        OrderTimeline[]
+  order_tags            OrderTag[]
+  order_tag_assignments OrderTagAssignment[]
 }
 
 model SubscriptionPlan {
@@ -649,6 +674,7 @@ model Order {
   store_id            Int
   customer_id         Int?
   cart_id             Int?
+  assigned_user_id    Int?
   order_number        String
   source              OrderSource          @default(STOREFRONT)
   status              ShipmentStatus       @default(PENDING)
@@ -667,6 +693,11 @@ model Order {
   store               Store                @relation(fields: [store_id], references: [id], onDelete: Cascade)
   customer            Customer?            @relation(fields: [customer_id, store_id], references: [id, store_id], onDelete: NoAction)
   cart                Cart?                @relation(fields: [cart_id, store_id], references: [id, store_id], onDelete: NoAction)
+  // The optional staff member responsible for following up on this order.
+  // `User` is intentionally cross-store, so the FK targets `User(id)` directly
+  // (no composite key with store_id). Per-store eligibility is enforced at
+  // the application layer via OrderService.isEligibleAssignee.
+  assigned_user       User?                @relation("OrderAssignee", fields: [assigned_user_id], references: [id], onDelete: SetNull)
   items               OrderItem[]
   addresses           OrderAddress[]
   payments            PaymentTransaction[]
@@ -674,6 +705,7 @@ model Order {
   timeline            OrderTimeline[]
   inventory_moves     InventoryMovement[]
   coupon_usages       CouponUsage[]
+  tag_assignments     OrderTagAssignment[]
 
   @@unique([store_id, order_number])
   @@unique([cart_id, store_id])
@@ -681,6 +713,9 @@ model Order {
   @@index([store_id, status, placed_at])
   @@index([store_id, customer_id, status])
   @@index([customer_id])
+  // Supports the per-store assignee filter and the "unassigned" narrowing
+  // (Postgres btrees index NULLs, so `IS NULL` benefits from this index).
+  @@index([store_id, assigned_user_id])
 }
 
 model OrderItem {
@@ -784,4 +819,40 @@ model OrderTimeline {
   actor         User?           @relation(fields: [actor_user_id], references: [id], onDelete: SetNull)
 
   @@index([order_id, created_at])
+}
+
+model OrderTag {
+  id           Int                 @id @default(autoincrement())
+  store_id     Int
+  name         String              @db.VarChar(30)
+  // `name_lower` is a Postgres GENERATED ALWAYS AS (lower(name)) STORED
+  // column. The dbgenerated default keeps Prisma from including it in
+  // INSERT/UPDATE statements (Postgres rejects explicit values on
+  // generated columns) while still letting the field appear on the
+  // typed model for SELECT/WHERE clauses (e.g. uniqueness checks).
+  name_lower   String              @default(dbgenerated("''")) @db.VarChar(30)
+  color_preset OrderTagColorPreset @default(slate)
+  created_at   DateTime            @default(now())
+  updated_at   DateTime            @updatedAt
+
+  store       Store                @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  assignments OrderTagAssignment[]
+
+  @@unique([store_id, name_lower])
+  @@unique([id, store_id])
+  @@index([store_id, created_at])
+}
+
+model OrderTagAssignment {
+  store_id Int
+  order_id Int
+  tag_id   Int
+
+  store Store    @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  order Order    @relation(fields: [order_id, store_id], references: [id, store_id], onDelete: Cascade)
+  tag   OrderTag @relation(fields: [tag_id, store_id], references: [id, store_id], onDelete: Cascade)
+
+  @@id([store_id, order_id, tag_id])
+  @@index([order_id])
+  @@index([tag_id])
 }

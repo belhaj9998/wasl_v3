@@ -20,7 +20,7 @@ const optionalNonNegativeMoneySchema = z.preprocess(
 export const createCategorySchema = z.object({
   name: z.string().min(2).max(100),
   parent_id: z.number().int().positive().nullable().optional(),
-  image_url: z.string().url().max(2048).nullable().optional(),
+  image_url: z.string().max(2048).nullable().optional(),
   is_active: z.boolean().optional().default(true),
 });
 
@@ -32,7 +32,7 @@ export const createCategorySchema = z.object({
 export const updateCategorySchema = z.object({
   name: z.string().min(2).max(100).optional(),
   parent_id: z.number().int().positive().nullable().optional(),
-  image_url: z.string().url().max(2048).nullable().optional(),
+  image_url: z.string().max(2048).nullable().optional(),
   is_active: z.boolean().optional(),
 });
 

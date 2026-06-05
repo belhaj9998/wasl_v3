@@ -19,7 +19,7 @@ export const categorySchema = z.object({
     .optional(),
   description: z.string().nullish(),
   parent_id: z.number().int().positive().nullish(),
-  image_url: z.string().url().nullish(),
+  image_url: z.string().nullish(),
   is_active: z.boolean().optional(),
 });
 

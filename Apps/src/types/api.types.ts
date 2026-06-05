@@ -41,3 +41,20 @@ export interface ValidationError {
   path: string;
   message: string;
 }
+
+export class ApiErrorClass extends Error implements ApiError {
+  readonly success = false as const;
+  readonly errors?: ValidationError[];
+  readonly statusCode?: number;
+  readonly status: number;
+  readonly data: unknown;
+
+  constructor(result: Partial<ApiError> | undefined, status: number) {
+    super(result?.message || `Request failed with status ${status}`);
+    this.name = "ApiError";
+    this.errors = result?.errors;
+    this.statusCode = result?.statusCode ?? status;
+    this.status = status;
+    this.data = result;
+  }
+}

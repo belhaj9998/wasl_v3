@@ -24,6 +24,7 @@ import {
   UserPlus,
   Shield,
   Settings,
+  Tag,
   PanelLeftClose,
   PanelLeftOpen,
   Menu,
@@ -64,6 +65,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   UserPlus,
   Shield,
   Settings,
+  Tag,
 };
 
 // ─── Sidebar Nav Item ────────────────────────────────────────────────────────

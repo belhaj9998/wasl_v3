@@ -97,7 +97,9 @@ function GeneralSettingsForm({
   const onSubmit = async (data: GeneralSettingsFormData) => {
     setSummaryErrors([]);
     try {
-      await storeSettingsService.updateGeneral(storeId, data);
+      await storeSettingsService.updateGeneral(storeId, {
+        name: data.name,
+      });
       toast.success(tSuccess("settingsUpdated"));
     } catch (error) {
       const apiError = error as ApiError;
@@ -203,8 +205,8 @@ function BrandingSettingsForm({
     setSummaryErrors([]);
     try {
       await storeSettingsService.updateBranding(storeId, {
-        logo_url: logoUrl,
-        favicon_url: faviconUrl,
+        logo: logoUrl,
+        favicon: faviconUrl,
       });
       toast.success(tSuccess("settingsUpdated"));
     } catch (error) {
@@ -472,8 +474,9 @@ function ContactSettingsForm({
       await storeSettingsService.updateContact(storeId, {
         support_email: data.support_email || null,
         support_phone: data.support_phone || null,
-        social_links:
-          Object.keys(socialLinksRecord).length > 0 ? socialLinksRecord : null,
+        facebook_url: socialLinksRecord.facebook || null,
+        instagram_url: socialLinksRecord.instagram || null,
+        tiktok_url: socialLinksRecord.tiktok || null,
       });
       toast.success(tSuccess("settingsUpdated"));
     } catch (error) {
@@ -837,7 +840,38 @@ export default function StoreSettingsPage() {
 
     try {
       const response = await storeSettingsService.getSettings(currentStoreId);
-      setSettings(response.data);
+      const store = response.data.store;
+
+      setSettings({
+        general: {
+          name: store.name,
+          domain: store.domain,
+          description: store.description,
+          currency: store.currency_code,
+          timezone: store.timezone,
+          language: store.locale,
+        },
+        branding: {
+          logo_url: store.logo,
+          favicon_url: store.favicon,
+          primary_color: null,
+          secondary_color: null,
+        },
+        seo: {
+          meta_title: store.meta_title,
+          meta_description: store.meta_description,
+          og_image_url: null,
+        },
+        contact: {
+          support_email: store.support_email,
+          support_phone: store.support_phone,
+          social_links: {
+            facebook: store.facebook_url ?? "",
+            instagram: store.instagram_url ?? "",
+            tiktok: store.tiktok_url ?? "",
+          },
+        },
+      });
     } catch {
       setError(t("loadError"));
     } finally {

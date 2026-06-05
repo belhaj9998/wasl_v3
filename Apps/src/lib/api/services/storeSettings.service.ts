@@ -44,35 +44,51 @@ export interface ContactSettings {
 
 export interface UpdateGeneralPayload {
   name?: string;
-  domain?: string;
-  description?: string;
-  currency?: string;
+  currency_code?: string;
+  locale?: string;
   timezone?: string;
-  language?: string;
 }
 
 export interface UpdateBrandingPayload {
-  logo_url?: string | null;
-  favicon_url?: string | null;
-  primary_color?: string | null;
-  secondary_color?: string | null;
+  logo?: string | null;
+  favicon?: string | null;
+  description?: string | null;
 }
 
 export interface UpdateSeoPayload {
   meta_title?: string | null;
   meta_description?: string | null;
-  og_image_url?: string | null;
 }
 
 export interface UpdateContactPayload {
   support_email?: string | null;
   support_phone?: string | null;
-  social_links?: Record<string, string> | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
+  tiktok_url?: string | null;
+}
+export interface StoreSettingsResponse {
+  id: number;
+  name: string;
+  domain: string;
+  description: string | null;
+  currency_code: string;
+  locale: string;
+  timezone: string;
+  logo: string | null;
+  favicon: string | null;
+  meta_title: string | null;
+  meta_description: string | null;
+  support_email: string | null;
+  support_phone: string | null;
+  facebook_url: string | null;
+  instagram_url: string | null;
+  tiktok_url: string | null;
 }
 
 export const storeSettingsService = {
   getSettings(storeId: number) {
-    return apiClient<ApiResponse<StoreSettings>>(
+    return apiClient<ApiResponse<{ store: StoreSettingsResponse }>>(
       API_ENDPOINTS.STORE.SETTINGS(storeId),
       { storeId },
     );
@@ -82,7 +98,7 @@ export const storeSettingsService = {
     return apiClient<ApiResponse<GeneralSettings>>(
       `${API_ENDPOINTS.STORE.SETTINGS(storeId)}/general`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },
@@ -93,7 +109,7 @@ export const storeSettingsService = {
     return apiClient<ApiResponse<BrandingSettings>>(
       `${API_ENDPOINTS.STORE.SETTINGS(storeId)}/branding`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },
@@ -104,7 +120,7 @@ export const storeSettingsService = {
     return apiClient<ApiResponse<SeoSettings>>(
       `${API_ENDPOINTS.STORE.SETTINGS(storeId)}/seo`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },
@@ -115,7 +131,7 @@ export const storeSettingsService = {
     return apiClient<ApiResponse<ContactSettings>>(
       `${API_ENDPOINTS.STORE.SETTINGS(storeId)}/contact`,
       {
-        method: "PUT",
+        method: "PATCH",
         body: payload,
         storeId,
       },

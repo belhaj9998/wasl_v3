@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, Response, NextFunction } from "express";
+import { AppRequest } from "../types";
 import {
   verifyToken,
   resolveStoreContext,
@@ -24,7 +25,9 @@ import {
   // Order schemas
   createOrderSchema,
   orderListQuerySchema,
+  orderCountsQuerySchema,
   updateOrderStatusSchema,
+  updateOrderSourceSchema,
   addOrderNoteSchema,
   // Shipment schemas
   createShipmentSchema,
@@ -42,7 +45,14 @@ import {
   couponIdParamSchema,
   orderIdParamSchema,
   shipmentIdParamSchema,
+  // Assignee schemas
+  assigneeIdParamSchema,
+  assignAssigneeSchema,
 } from "../validators/order.validators";
+import {
+  replaceOrderTagsSchema,
+  bulkOrderTagsSchema,
+} from "../validators/orderTag.validators";
 import { verifyStoreSubscriptionAccess } from "../middlewares/subscriptionAccess.Middleware";
 import * as customerController from "../controllers/store-admin/customer.Controller";
 import * as couponController from "../controllers/store-admin/coupon.Controller";
@@ -50,11 +60,33 @@ import * as orderController from "../controllers/store-admin/order.Controller";
 import * as shipmentController from "../controllers/store-admin/shipment.Controller";
 import * as paymentController from "../controllers/store-admin/payment.Controller";
 import * as dashboardController from "../controllers/store-admin/dashboard.Controller";
+import * as orderTagController from "../controllers/store-admin/orderTag.Controller";
 
 const router = Router({ mergeParams: true });
 
 // Apply verifyToken and resolveStoreContext to ALL order module routes
 router.use(verifyToken, resolveStoreContext, verifyStoreSubscriptionAccess);
+
+/**
+ * Conditional permission gate for the orders list/counts endpoints.
+ *
+ * The `orders.assign` permission is only enforced when the caller actually
+ * uses the `assigned_user_id` filter. Without the parameter, the existing
+ * `orders.view` gate stands alone so any viewer can list orders
+ * (Requirement 10.7). When the parameter is present, the request must also
+ * carry `orders.assign` (Requirement 10.4); the eligibility of the supplied
+ * ids is then validated downstream in the service (Requirement 9.6).
+ */
+const requireAssignIfFilterUsed = (
+  req: AppRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (req.query.assigned_user_id !== undefined) {
+    return requirePermission("orders.assign")(req, res, next);
+  }
+  return next();
+};
 
 // ========== Customer Routes ==========
 
@@ -213,6 +245,7 @@ router.get(
 router.get(
   "/orders",
   requirePermission("orders.view"),
+  requireAssignIfFilterUsed,
   validateQuery(orderListQuerySchema),
   orderController.list,
 );
@@ -223,6 +256,64 @@ router.post(
   requirePermission("orders.create"),
   validateBody(createOrderSchema),
   orderController.create,
+);
+// GET /orders/stats/counts — total + per-status counts for orders list status tabs
+// MUST be registered BEFORE /orders/:orderId so Express matches the static path first
+router.get(
+  "/orders/stats/counts",
+  requirePermission("orders.view"),
+  requireAssignIfFilterUsed,
+  validateQuery(orderCountsQuerySchema),
+  orderController.getCounts,
+);
+
+// GET /orders/stats/kpis — today's count/revenue/AOV + all-time pending count
+// Sibling of /orders/stats/counts. MUST be registered BEFORE /orders/:orderId.
+// No query params accepted.
+router.get(
+  "/orders/stats/kpis",
+  requirePermission("orders.view"),
+  orderController.getKpis,
+);
+
+// GET /orders/assignees — list eligible assignees for the store's orders
+// MUST be registered BEFORE /orders/:orderId so Express matches the static
+// `/orders/assignees` path before the :orderId parameter (Requirement 7.4).
+router.get(
+  "/orders/assignees",
+  requirePermission("orders.assign"),
+  orderController.listEligibleAssignees,
+);
+
+// ========== Order Tag Assignment Routes ==========
+// Bulk routes MUST be registered BEFORE /orders/:orderId so Express matches
+// the literal `/orders/bulk/tags` path before the :orderId parameter.
+
+// POST /orders/bulk/tags — bulk-add tags to a list of orders
+router.post(
+  "/orders/bulk/tags",
+  requirePermission("orders.update"),
+  requirePermission("orders.tags.write"),
+  validateBody(bulkOrderTagsSchema),
+  orderTagController.bulkAdd,
+);
+
+// DELETE /orders/bulk/tags — bulk-remove tags from a list of orders
+router.delete(
+  "/orders/bulk/tags",
+  requirePermission("orders.update"),
+  requirePermission("orders.tags.write"),
+  validateBody(bulkOrderTagsSchema),
+  orderTagController.bulkRemove,
+);
+
+// PATCH /orders/:orderId/source — update order source
+router.patch(
+  "/orders/:orderId/source",
+  requirePermission("orders.manage_source"),
+  validateParams(orderIdParamSchema),
+  validateBody(updateOrderSourceSchema),
+  orderController.updateOrderSource,
 );
 
 // GET /orders/:orderId — get order by ID
@@ -240,6 +331,17 @@ router.patch(
   validateParams(orderIdParamSchema),
   validateBody(updateOrderStatusSchema),
   orderController.updateStatus,
+);
+
+// PATCH /orders/:orderId/assignee — set, change, or clear the order's assignee
+// Gated by `orders.assign` ONLY — intentionally does NOT require `orders.update`
+// (Requirement 10.6).
+router.patch(
+  "/orders/:orderId/assignee",
+  requirePermission("orders.assign"),
+  validateParams(assigneeIdParamSchema),
+  validateBody(assignAssigneeSchema),
+  orderController.assignAssignee,
 );
 
 // POST /orders/:orderId/cancel — cancel order
@@ -265,6 +367,24 @@ router.get(
   requirePermission("orders.view"),
   validateParams(orderIdParamSchema),
   orderController.getTimeline,
+);
+
+// GET /orders/:orderId/tags — list tags currently assigned to an order
+router.get(
+  "/orders/:orderId/tags",
+  requirePermission("orders.tags.read"),
+  validateParams(orderIdParamSchema),
+  orderTagController.getForOrder,
+);
+
+// PUT /orders/:orderId/tags — replace the entire tag set on an order
+router.put(
+  "/orders/:orderId/tags",
+  requirePermission("orders.update"),
+  requirePermission("orders.tags.write"),
+  validateParams(orderIdParamSchema),
+  validateBody(replaceOrderTagsSchema),
+  orderTagController.replaceForOrder,
 );
 
 // ========== Shipment Routes ==========

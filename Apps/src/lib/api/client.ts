@@ -7,6 +7,7 @@
  */
 
 import { API_BASE_URL, API_ENDPOINTS } from "@/lib/constants";
+import { ApiErrorClass } from "@/types/api.types";
 
 // ---------------------------------------------------------------------------
 // In-memory token storage (never persisted to localStorage/sessionStorage)
@@ -215,7 +216,7 @@ export async function apiClient<T>(
   const result = await response.json();
 
   if (!response.ok) {
-    throw result;
+    throw new ApiErrorClass(result, response.status);
   }
 
   return result;

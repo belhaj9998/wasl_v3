@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { tagFilterIdsQuerySchema } from "./orderTag.validators";
 
 // ─── Customer Schemas ────────────────────────────────────────────────────────
 
@@ -177,6 +178,159 @@ export const couponListQuerySchema = z.object({
   sort_order: z.enum(["asc", "desc"]).optional().default("desc"),
 });
 
+// ─── Order Assignee Schemas ──────────────────────────────────────────────────
+
+/**
+ * Body schema for `PATCH /orders/:orderId/assignee`.
+ * Requires exactly one field `user_id` of type `number | null` (a positive
+ * integer or explicit null). `.strict()` rejects any extra fields, so an
+ * invalid body surfaces as a 400 VALIDATION_ERROR.
+ * Validates: Requirements 3.7, 6.1
+ */
+export const assignAssigneeSchema = z
+  .object({
+    user_id: z.number().int().positive().nullable(),
+  })
+  .strict();
+
+/**
+ * Helper for parsing the `assigned_user_id` query parameter on the orders
+ * list / counts endpoints. Accepts:
+ *   - "me"          → "me"
+ *   - "unassigned"  → "unassigned"
+ *   - "3" or "3,7"  → number[] (sorted ascending, deduplicated)
+ *
+ * On any malformed value, or when `unassigned`/`me` is mixed with integers,
+ * emits a Zod issue with message `ASSIGNEE_FILTER_INVALID` so the upstream
+ * error handler can surface a 400 with that error code before any DB call.
+ * Validates: Requirements 9.1, 9.2, 9.3, 9.6
+ */
+export const assigneeFilterSchema = z
+  .string()
+  .optional()
+  .transform((raw, ctx) => {
+    if (!raw) return undefined;
+    if (raw === "me" || raw === "unassigned") return raw;
+    const parts = raw.split(",").map((s) => s.trim());
+    if (parts.includes("unassigned") || parts.includes("me")) {
+      ctx.addIssue({ code: "custom", message: "ASSIGNEE_FILTER_INVALID" });
+      return z.NEVER;
+    }
+    const nums = parts.map((s) => Number(s));
+    if (nums.some((n) => !Number.isInteger(n) || n <= 0)) {
+      ctx.addIssue({ code: "custom", message: "ASSIGNEE_FILTER_INVALID" });
+      return z.NEVER;
+    }
+    return Array.from(new Set(nums)).sort((a, b) => a - b);
+  });
+
+// ─── Order Source Schemas ────────────────────────────────────────────────────
+
+/**
+ * Editable channel set (full canonical 8, incl STOREFRONT) — for the
+ * source-edit endpoint PATCH /orders/:orderId/source.
+ * Validates: Requirements 5.6, 7.1, 15.2
+ */
+export const updateOrderSourceSchema = z
+  .object({
+    source: z.enum([
+      "STOREFRONT",
+      "ADMIN",
+      "WHATSAPP",
+      "PHONE",
+      "INSTAGRAM",
+      "FACEBOOK",
+      "TIKTOK",
+      "OTHER",
+    ]),
+  })
+  .strict();
+
+/**
+ * Creatable channel set (7, EXCLUDES STOREFRONT) — used to tighten the
+ * create-order `source` field. STOREFRONT is system-assigned at checkout;
+ * MANUAL no longer exists.
+ * Validates: Requirements 2.6, 15.1
+ */
+const creatableSourceEnum = z.enum([
+  "ADMIN",
+  "WHATSAPP",
+  "PHONE",
+  "INSTAGRAM",
+  "FACEBOOK",
+  "TIKTOK",
+  "OTHER",
+]);
+
+/**
+ * Helper for parsing the `source` query parameter on the orders list/counts
+ * endpoints. Accepts a comma-separated list of canonical OrderSource tokens
+ * (the full 8). Trims/filters blanks, validates every token against the
+ * canonical set, and on any unknown token (incl `MANUAL`) emits a Zod issue
+ * with message `INVALID_ORDER_SOURCE` so the upstream error handler returns a
+ * 400 with that error code before any DB call. Returns a deduped + sorted
+ * array, or `undefined` when empty.
+ * Validates: Requirements 11.3, 11.4, 12.4, 15.3
+ */
+export const sourceFilterSchema = z
+  .string()
+  .optional()
+  .transform((raw, ctx) => {
+    if (!raw) return undefined;
+    const VALID = new Set([
+      "STOREFRONT",
+      "ADMIN",
+      "WHATSAPP",
+      "PHONE",
+      "INSTAGRAM",
+      "FACEBOOK",
+      "TIKTOK",
+      "OTHER",
+    ]);
+    const parts = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return undefined;
+    if (parts.some((p) => !VALID.has(p))) {
+      ctx.addIssue({ code: "custom", message: "INVALID_ORDER_SOURCE" });
+      return z.NEVER;
+    }
+    return Array.from(new Set(parts)).sort();
+  });
+
+/**
+ * Order counts query schema.
+ * Mirrors orderListQuerySchema minus status/page/limit/sort_by/sort_order.
+ * Used by GET /orders/stats/counts to compute per-status counts respecting
+ * the same filters as the list endpoint, while ignoring `status` itself.
+ * Validates: Requirements 4.1, 8.1, 8.3 (orders-list-status-tabs)
+ */
+export const orderCountsQuerySchema = z.object({
+  search: z.string().max(200).optional(),
+  payment_status: z
+    .enum([
+      "UNPAID",
+      "PENDING",
+      "PARTIALLY_PAID",
+      "PAID",
+      "FAILED",
+      "REFUNDED",
+      "PARTIALLY_REFUNDED",
+    ])
+    .optional(),
+  source: sourceFilterSchema,
+  customer_id: z.coerce.number().int().positive().optional(),
+  date_from: z.coerce.date().optional(),
+  date_to: z.coerce.date().optional(),
+  amount_min: z.coerce.number().min(0).optional(),
+  amount_max: z.coerce.number().min(0).optional(),
+  tag_ids: tagFilterIdsQuerySchema,
+  assigned_user_id: assigneeFilterSchema,
+});
+
+export type OrderCountsQuery = z.infer<typeof orderCountsQuerySchema>;
+
 // ─── Order Schemas ───────────────────────────────────────────────────────────
 
 /**
@@ -198,9 +352,7 @@ export const createOrderSchema = z.object({
   customer_name: z.string().min(1).max(200).optional(),
   customer_phone: z.string().min(8).max(20).optional(),
   customer_email: z.string().email().max(255).optional(),
-  source: z
-    .enum(["STOREFRONT", "ADMIN", "MANUAL", "INSTAGRAM", "FACEBOOK", "TIKTOK"])
-    .default("ADMIN"),
+  source: creatableSourceEnum.default("ADMIN"),
   payment_method: z
     .enum(["CASH_ON_DELIVERY", "CARD", "BANK_TRANSFER", "WALLET", "MANUAL"])
     .optional(),
@@ -248,14 +400,14 @@ export const orderListQuerySchema = z.object({
       "PARTIALLY_REFUNDED",
     ])
     .optional(),
-  source: z
-    .enum(["STOREFRONT", "ADMIN", "MANUAL", "INSTAGRAM", "FACEBOOK", "TIKTOK"])
-    .optional(),
+  source: sourceFilterSchema,
   customer_id: z.coerce.number().int().positive().optional(),
   date_from: z.coerce.date().optional(),
   date_to: z.coerce.date().optional(),
   amount_min: z.coerce.number().min(0).optional(),
   amount_max: z.coerce.number().min(0).optional(),
+  tag_ids: tagFilterIdsQuerySchema,
+  assigned_user_id: assigneeFilterSchema,
   sort_by: z
     .enum(["placed_at", "grand_total", "order_number"])
     .optional()
@@ -448,6 +600,17 @@ export const couponIdParamSchema = z.object({
  * Coerces string params to positive integers.
  */
 export const orderIdParamSchema = z.object({
+  storeId: z.coerce.number().int().positive(),
+  orderId: z.coerce.number().int().positive(),
+});
+
+/**
+ * Route params schema for the order assignee endpoint
+ * (`PATCH /orders/:orderId/assignee`).
+ * Coerces string params to positive integers.
+ * Validates: Requirements 6.1, 6.6
+ */
+export const assigneeIdParamSchema = z.object({
   storeId: z.coerce.number().int().positive(),
   orderId: z.coerce.number().int().positive(),
 });

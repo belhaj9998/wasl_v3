@@ -49,9 +49,9 @@ export const manualOrderSchema = z.object({
     .default("CASH_ON_DELIVERY"),
   notes_from_customer: z.string().max(1000).optional().default(""),
   source: z
-    .enum(["ADMIN", "MANUAL", "INSTAGRAM", "FACEBOOK", "TIKTOK"])
+    .enum(["ADMIN", "WHATSAPP", "PHONE", "INSTAGRAM", "FACEBOOK", "TIKTOK", "OTHER"])
     .optional()
-    .default("MANUAL"),
+    .default("ADMIN"),
 });
 
 export type ManualOrderFormData = z.infer<typeof manualOrderSchema>;

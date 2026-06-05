@@ -43,6 +43,32 @@ export interface DataTableProps<TData> {
   onRetry?: () => void;
   emptyMessage?: string;
   emptyIcon?: React.ReactNode;
+  /** Controlled column visibility (TanStack `state.columnVisibility`). */
+  columnVisibility?: Record<string, boolean>;
+  /** Controlled column order (TanStack `state.columnOrder`). */
+  columnOrder?: string[];
+  /** Called with the next visibility record after a TanStack-internal change. */
+  onColumnVisibilityChange?: (next: Record<string, boolean>) => void;
+  /** Called with the next order array after a TanStack-internal change. */
+  onColumnOrderChange?: (next: string[]) => void;
+  /**
+   * Called when a user clicks anywhere on a data row (excluding interactive
+   * children that call `event.stopPropagation()`). Use for whole-row navigation.
+   */
+  onRowClick?: (row: TData) => void;
+  /**
+   * Predicate that decides whether a given row is currently expanded.
+   * When `renderRowExpansion` is provided AND this returns `true`,
+   * the table renders a second `<tr>` underneath the row containing the
+   * expansion content.
+   */
+  isRowExpanded?: (row: TData) => boolean;
+  /**
+   * Render-prop used to produce the expansion content for an expanded row.
+   * Only invoked when `isRowExpanded(row) === true`. The content is rendered
+   * inside a single `<td colSpan={visibleColumns.length}>` cell.
+   */
+  renderRowExpansion?: (row: TData) => React.ReactNode;
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -66,6 +92,13 @@ export function DataTable<TData>({
   onRetry,
   emptyMessage,
   emptyIcon,
+  columnVisibility,
+  columnOrder,
+  onColumnVisibilityChange,
+  onColumnOrderChange,
+  onRowClick,
+  isRowExpanded,
+  renderRowExpansion,
 }: DataTableProps<TData>) {
   const t = useTranslations("table");
   const tCommon = useTranslations("common");
@@ -75,15 +108,36 @@ export function DataTable<TData>({
     onConfirm: (() => void) | null;
   }>({ open: false, onConfirm: null });
 
+  /**
+   * Translates a TanStack `Updater<T>` (which can be either a function or a
+   * direct value) into a plain `T`, then forwards to the consumer callback.
+   * Used to bridge controlled column-visibility / column-order props.
+   */
+  const tanstackUpdater =
+    <T,>(current: T, cb?: (next: T) => void) =>
+    (updaterOrValue: T | ((old: T) => T)) => {
+      const next =
+        typeof updaterOrValue === "function"
+          ? (updaterOrValue as (old: T) => T)(current)
+          : updaterOrValue;
+      cb?.(next);
+    };
+
+  // Build TanStack state and handlers conditionally so that omitted column
+  // props leave the table fully uncontrolled (preserves existing behavior).
+  const tableState: Parameters<typeof useReactTable>[0]["state"] = {
+    sorting,
+    ...(columnVisibility !== undefined ? { columnVisibility } : {}),
+    ...(columnOrder !== undefined ? { columnOrder } : {}),
+  };
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
     manualSorting: true,
-    state: {
-      sorting,
-    },
+    state: tableState,
     onSortingChange: (updater) => {
       const newSorting =
         typeof updater === "function" ? updater(sorting) : updater;
@@ -96,6 +150,15 @@ export function DataTable<TData>({
         onSortChange?.("", "asc");
       }
     },
+    ...(columnVisibility !== undefined && {
+      onColumnVisibilityChange: tanstackUpdater(
+        columnVisibility,
+        onColumnVisibilityChange,
+      ),
+    }),
+    ...(columnOrder !== undefined && {
+      onColumnOrderChange: tanstackUpdater(columnOrder, onColumnOrderChange),
+    }),
     rowCount: meta?.total ?? 0,
   });
 
@@ -201,19 +264,50 @@ export function DataTable<TData>({
                 </TableCell>
               </TableRow>
             ) : (
-              // Data rows
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
+              // Data rows — supports optional expansion and whole-row click
+              table.getRowModel().rows.map((row) => {
+                const expanded = isRowExpanded?.(row.original) ?? false;
+                const visibleCells = row.getVisibleCells();
+                const clickable = Boolean(onRowClick);
+
+                return (
+                  <React.Fragment key={row.id}>
+                    <TableRow
+                      onClick={
+                        clickable ? () => onRowClick?.(row.original) : undefined
+                      }
+                      className={
+                        clickable
+                          ? "cursor-pointer hover:bg-muted/50 transition-colors"
+                          : undefined
+                      }
+                      data-state={expanded ? "expanded" : undefined}
+                    >
+                      {visibleCells.map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext(),
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                    {expanded && renderRowExpansion && (
+                      <TableRow
+                        data-state="expansion"
+                        className="hover:bg-transparent"
+                      >
+                        <TableCell
+                          colSpan={visibleCells.length}
+                          className="p-0"
+                        >
+                          {renderRowExpansion(row.original)}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
           </TableBody>
         </Table>

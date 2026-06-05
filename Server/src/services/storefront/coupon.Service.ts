@@ -1,6 +1,7 @@
 import prisma from "../../configs/prisma";
 import { Prisma } from "../../../generated/prisma";
 import { AppError } from "../../utils/AppError";
+import { Money, getScale } from "../../utils/money";
 
 /**
  * Type alias for a Prisma transaction client, used by methods that
@@ -317,27 +318,19 @@ export class StorefrontCouponService {
     }
 
     // Calculate discount — Requirements 7.8, 7.9
-    let discount: Prisma.Decimal;
+    // Use Money.calculateDiscount for single-point rounding at currency scale
+    const scale = getScale("LYD");
+    const couponValue = new Prisma.Decimal(coupon.value.toString());
+    const couponCap =
+      coupon.maximum_discount_amount !== null
+        ? new Prisma.Decimal(coupon.maximum_discount_amount.toString())
+        : null;
 
-    if (coupon.type === "PERCENTAGE") {
-      // PERCENTAGE: discount = subtotal * (value / 100), capped at maximum_discount_amount
-      const value = new Prisma.Decimal(coupon.value.toString());
-      discount = cartSubtotal.mul(value).div(100);
-
-      if (coupon.maximum_discount_amount !== null) {
-        const maxDiscount = new Prisma.Decimal(
-          coupon.maximum_discount_amount.toString(),
-        );
-        discount = Prisma.Decimal.min(discount, maxDiscount);
-      }
-    } else {
-      // FIXED: discount = min(coupon.value, subtotal)
-      const value = new Prisma.Decimal(coupon.value.toString());
-      discount = Prisma.Decimal.min(value, cartSubtotal);
-    }
-
-    // Discount should never exceed subtotal
-    discount = Prisma.Decimal.min(discount, cartSubtotal);
+    const discount = Money.calculateDiscount(
+      cartSubtotal,
+      { type: coupon.type, value: couponValue, cap: couponCap },
+      scale,
+    );
 
     return { valid: true, coupon, discount };
   }

@@ -63,6 +63,54 @@ export function errorHandler(
 
   // 3. ZodError — validation failure
   if (err instanceof ZodError) {
+    // Special-case the order-tag filter helper: it throws
+    // `Error("TAG_FILTER_INVALID")` inside a Zod transform when the
+    // `tag_ids` query parameter is malformed. We surface this as a
+    // 400 with a stable error code instead of the generic 422.
+    const tagFilterIssue = err.issues.find(
+      (issue) =>
+        issue.code === "custom" && issue.message === "TAG_FILTER_INVALID",
+    );
+    if (tagFilterIssue) {
+      res.status(400).json({
+        success: false,
+        error: "TAG_FILTER_INVALID",
+        message: "Invalid tag_ids filter value",
+      });
+      return;
+    }
+
+    // Special-case the order-assignee filter helper: it adds a custom issue
+    // with `message === "ASSIGNEE_FILTER_INVALID"` inside a Zod transform when
+    // the `assigned_user_id` query parameter is malformed (bad token, mixed
+    // `unassigned`/`me` with integers, etc.). Surface it as a 400 with a stable
+    // error code instead of the generic 422 (Requirement 9.6).
+    const assigneeFilterIssue = err.issues.find(
+      (issue) =>
+        issue.code === "custom" && issue.message === "ASSIGNEE_FILTER_INVALID",
+    );
+    if (assigneeFilterIssue) {
+      res.status(400).json({
+        success: false,
+        error: "ASSIGNEE_FILTER_INVALID",
+        message: "Invalid assigned_user_id filter value",
+      });
+      return;
+    }
+
+    const sourceFilterIssue = err.issues.find(
+      (issue) =>
+        issue.code === "custom" && issue.message === "INVALID_ORDER_SOURCE",
+    );
+    if (sourceFilterIssue) {
+      res.status(400).json({
+        success: false,
+        error: "INVALID_ORDER_SOURCE",
+        message: "Invalid order source value",
+      });
+      return;
+    }
+
     res.status(422).json({
       success: false,
       error: err.issues,

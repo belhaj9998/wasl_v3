@@ -1,5 +1,7 @@
 import prisma from "../../configs/prisma";
+import { Prisma } from "../../../generated/prisma";
 import { AppError } from "../../utils/AppError";
+import { Money, getScale } from "../../utils/money";
 
 /**
  * Parameters for listing coupons with pagination, filtering, and sorting.
@@ -61,7 +63,7 @@ interface PaginationParams {
  */
 interface CouponValidationResult {
   valid: boolean;
-  discount_amount: number;
+  discount_amount: Prisma.Decimal;
   coupon: any;
 }
 
@@ -374,14 +376,16 @@ export class CouponService {
    * @param storeId - The store ID for multi-tenant isolation
    * @param code - The coupon code to validate
    * @param customerId - The customer ID (null for guest orders)
-   * @param orderSubtotal - The order subtotal to validate against
+   * @param orderSubtotal - The order subtotal to validate against (Prisma.Decimal)
+   * @param scale - Currency decimal scale (defaults to LYD = 3)
    * @returns Validation result with discount amount and coupon record
    */
   async validateCoupon(
     storeId: number,
     code: string,
     customerId: number | null,
-    orderSubtotal: number,
+    orderSubtotal: Prisma.Decimal,
+    scale: number = getScale("LYD"),
   ): Promise<CouponValidationResult> {
     // Step 1: Find coupon by code (case-insensitive via uppercase)
     const coupon = await prisma.coupon.findFirst({
@@ -406,10 +410,12 @@ export class CouponService {
       throw AppError.badRequest("Coupon has expired");
     }
 
-    // Step 4: Check minimum order amount
+    // Step 4: Check minimum order amount (Decimal comparison)
     if (
       coupon.minimum_order_amount &&
-      orderSubtotal < Number(coupon.minimum_order_amount)
+      orderSubtotal.lt(
+        new Prisma.Decimal(coupon.minimum_order_amount.toString()),
+      )
     ) {
       throw AppError.badRequest(
         `Minimum order amount is ${coupon.minimum_order_amount}`,
@@ -442,25 +448,18 @@ export class CouponService {
       }
     }
 
-    // Step 7: Calculate discount
-    let discountAmount: number;
-    if (coupon.type === "PERCENTAGE") {
-      discountAmount = orderSubtotal * (Number(coupon.value) / 100);
-    } else {
-      // FIXED: discount is the coupon value or subtotal, whichever is smaller
-      discountAmount = Math.min(Number(coupon.value), orderSubtotal);
-    }
-
-    // Step 8: Apply maximum discount cap
-    if (coupon.maximum_discount_amount) {
-      discountAmount = Math.min(
-        discountAmount,
-        Number(coupon.maximum_discount_amount),
-      );
-    }
-
-    // Ensure discount doesn't exceed subtotal
-    discountAmount = Math.min(discountAmount, orderSubtotal);
+    // Step 7: Calculate discount using Money utility (Decimal-based, HALF_UP rounding)
+    const discountAmount = Money.calculateDiscount(
+      orderSubtotal,
+      {
+        type: coupon.type,
+        value: new Prisma.Decimal(coupon.value.toString()),
+        cap: coupon.maximum_discount_amount
+          ? new Prisma.Decimal(coupon.maximum_discount_amount.toString())
+          : null,
+      },
+      scale,
+    );
 
     return {
       valid: true,

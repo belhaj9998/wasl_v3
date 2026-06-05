@@ -6,6 +6,7 @@ import {
   orderNumberGenerator,
   PrismaTransactionClient,
 } from "../../utils/orderNumberGenerator";
+import { Money, getScale } from "../../utils/money";
 
 /**
  * StorefrontCheckoutService handles the atomic 9-step checkout transaction.
@@ -122,13 +123,16 @@ export class StorefrontCheckoutService {
         },
       });
 
+      // Resolve currency scale for monetary rounding
+      const currencyCode = cart.currency_code ?? "LYD";
+      const scale = getScale(currencyCode);
+
       // Create OrderItems with snapshot data
       const orderItemsData = cart.items.map((item: any) => {
         // unit_price: variant.price ?? product.base_price
-        const unitPrice = item.variant.price ?? item.product.base_price;
-        const lineTotal = new Prisma.Decimal(unitPrice.toString()).mul(
-          item.quantity,
-        );
+        const unitPrice: Prisma.Decimal =
+          item.variant.price ?? item.product.base_price;
+        const lineTotal = Money.multiply(unitPrice, item.quantity, scale);
 
         return {
           store_id: storeId,
@@ -140,7 +144,7 @@ export class StorefrontCheckoutService {
           sku: item.variant.sku,
           quantity: item.quantity,
           unit_price: unitPrice,
-          discount_total: new Prisma.Decimal(0),
+          discount_total: Money.zero(),
           line_total: lineTotal,
         };
       });
@@ -305,18 +309,55 @@ export class StorefrontCheckoutService {
       });
 
       // ─── Step 9: Final Order Totals Recalculation ──────────────────────────────
-      const subtotal = new Prisma.Decimal(cart.subtotal.toString());
-      const discount = new Prisma.Decimal(cart.discount_total.toString());
-      const shipping = new Prisma.Decimal(cart.shipping_total.toString());
-      const grandTotal = subtotal.sub(discount).add(shipping);
+      // Use Money utility for consistent rounding — same path as cart service
+      const items = cart.items.map((item: any) => ({
+        unit_price: (item.variant.price ??
+          item.product.base_price) as Prisma.Decimal,
+        quantity: item.quantity as number,
+      }));
+
+      // Find coupon info if discount was applied
+      let couponInfo: {
+        type: string;
+        value: Prisma.Decimal;
+        cap: Prisma.Decimal | null;
+      } | null = null;
+      const cartDiscountTotal = new Prisma.Decimal(
+        cart.discount_total.toString(),
+      );
+      if (cartDiscountTotal.gt(0)) {
+        const couponUsage = await (tx as any).couponUsage.findFirst({
+          where: { store_id: storeId, cart_id: cartId, order_id: order.id },
+          include: { coupon: true },
+        });
+        if (couponUsage?.coupon) {
+          couponInfo = {
+            type: couponUsage.coupon.type,
+            value: new Prisma.Decimal(couponUsage.coupon.value.toString()),
+            cap: couponUsage.coupon.maximum_discount_amount
+              ? new Prisma.Decimal(
+                  couponUsage.coupon.maximum_discount_amount.toString(),
+                )
+              : null,
+          };
+        }
+      }
+
+      const shippingTotal = new Prisma.Decimal(cart.shipping_total.toString());
+      const totals = Money.computeOrderTotals(
+        items,
+        couponInfo,
+        shippingTotal,
+        scale,
+      );
 
       const finalOrder = await (tx as any).order.update({
         where: { id_store_id: { id: order.id, store_id: storeId } },
         data: {
-          subtotal: subtotal,
-          discount_total: discount,
-          shipping_total: shipping,
-          grand_total: Prisma.Decimal.max(grandTotal, new Prisma.Decimal(0)),
+          subtotal: totals.subtotal,
+          discount_total: totals.discountTotal,
+          shipping_total: shippingTotal,
+          grand_total: totals.grandTotal,
         },
         include: {
           items: true,

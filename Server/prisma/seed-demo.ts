@@ -392,12 +392,13 @@ async function seedStores() {
 async function seedRolesAndMemberships(stores: any[], users: any[]) {
   console.log("  Seeding roles and memberships...");
   for (const store of stores) {
-    // Create default roles for each store
+    // Create or sync default roles for each store
     for (const roleTemplate of defaultRoleTemplates) {
       const existingRole = await prisma.storeRole.findUnique({
         where: {
           store_id_slug: { store_id: store.id, slug: roleTemplate.slug },
         },
+        include: { permissions: { include: { permission: true } } },
       });
       if (!existingRole) {
         await prisma.storeRole.create({
@@ -415,6 +416,40 @@ async function seedRolesAndMemberships(stores: any[], users: any[]) {
             },
           },
         });
+      } else {
+        // Reconcile RolePermission rows so newly added template permissions
+        // (e.g., orders.tags.*) propagate to roles that already existed.
+        const currentCodes = new Set(
+          existingRole.permissions.map((rp) => rp.permission.code),
+        );
+        const targetCodes = new Set<string>(roleTemplate.permissions);
+        const toAdd = [...targetCodes].filter((c) => !currentCodes.has(c));
+        const toRemove = [...currentCodes].filter((c) => !targetCodes.has(c));
+
+        if (toAdd.length > 0) {
+          const permRows = await prisma.permission.findMany({
+            where: { code: { in: toAdd } },
+            select: { id: true },
+          });
+          if (permRows.length > 0) {
+            await prisma.storeRolePermission.createMany({
+              data: permRows.map((p) => ({
+                role_id: existingRole.id,
+                permission_id: p.id,
+              })),
+              skipDuplicates: true,
+            });
+          }
+        }
+
+        if (toRemove.length > 0) {
+          await prisma.storeRolePermission.deleteMany({
+            where: {
+              role_id: existingRole.id,
+              permission: { code: { in: toRemove } },
+            },
+          });
+        }
       }
     }
   }

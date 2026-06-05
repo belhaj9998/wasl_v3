@@ -53,6 +53,17 @@ export const API_ENDPOINTS = {
       `/stores/${storeId}/notifications/read-all`,
     NOTIFICATIONS_SETTINGS: (storeId: number) =>
       `/stores/${storeId}/notifications/settings`,
+    ORDER_TAGS: (storeId: number) => `/stores/${storeId}/order-tags`,
+    ORDER_TAG_BY_ID: (storeId: number, tagId: number) =>
+      `/stores/${storeId}/order-tags/${tagId}`,
+    ORDER_TAGS_FOR_ORDER: (storeId: number, orderId: number) =>
+      `/stores/${storeId}/orders/${orderId}/tags`,
+    ORDER_TAGS_BULK: (storeId: number) => `/stores/${storeId}/orders/bulk/tags`,
+    ORDER_ASSIGNEES: (storeId: number) => `/stores/${storeId}/orders/assignees`,
+    ORDER_ASSIGNEE: (storeId: number, orderId: number) =>
+      `/stores/${storeId}/orders/${orderId}/assignee`,
+    ORDER_SOURCE: (storeId: number, orderId: number) =>
+      `/stores/${storeId}/orders/${orderId}/source`,
   },
 
   // Storefront (requires domain in path)

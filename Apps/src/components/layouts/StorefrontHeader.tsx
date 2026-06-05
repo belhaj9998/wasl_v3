@@ -11,7 +11,13 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { ShoppingCart, User, Menu } from "lucide-react";
+import {
+  ShoppingCart,
+  User,
+  Menu,
+  ChevronDown,
+  FolderTree,
+} from "lucide-react";
 
 import { useAppSelector } from "@/lib/store/hooks";
 import { selectCartItemCount } from "@/lib/store/slices/cart.slice";
@@ -73,15 +79,57 @@ export function StorefrontHeader({
             >
               {t("products")}
             </Link>
-            {categories.slice(0, 5).map((category) => (
-              <Link
-                key={category.id}
-                href={ROUTES.STOREFRONT.CATEGORY(domain, category.slug)}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {category.name}
-              </Link>
-            ))}
+
+            {/* Categories with hover dropdown */}
+            {categories.length > 0 && (
+              <div className="relative group">
+                <Link
+                  href={ROUTES.STOREFRONT.CATEGORIES_LIST(domain)}
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  الأقسام
+                  <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover:rotate-180" />
+                </Link>
+
+                {/* Dropdown panel */}
+                <div className="invisible opacity-0 translate-y-1 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 focus-within:visible focus-within:opacity-100 focus-within:translate-y-0 absolute top-full start-0 pt-2 w-64 z-50 transition-all duration-150">
+                  <div className="rounded-md border bg-popover shadow-lg overflow-hidden">
+                    <ul className="py-2 max-h-96 overflow-y-auto">
+                      {categories.map((category) => (
+                        <li key={category.id}>
+                          <Link
+                            href={ROUTES.STOREFRONT.CATEGORY(
+                              domain,
+                              category.slug,
+                            )}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+                          >
+                            {category.image_url ? (
+                              <Image
+                                src={category.image_url}
+                                alt=""
+                                width={24}
+                                height={24}
+                                className="h-6 w-6 rounded object-cover flex-shrink-0"
+                              />
+                            ) : (
+                              <FolderTree className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            )}
+                            <span className="truncate">{category.name}</span>
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={ROUTES.STOREFRONT.CATEGORIES_LIST(domain)}
+                      className="block border-t px-3 py-2 text-sm font-medium text-primary hover:bg-accent transition-colors text-center"
+                    >
+                      عرض كل الأقسام
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
           </nav>
 
           {/* Product Search */}
@@ -136,16 +184,30 @@ export function StorefrontHeader({
                   >
                     {t("products")}
                   </Link>
-                  {categories.map((category) => (
-                    <Link
-                      key={category.id}
-                      href={ROUTES.STOREFRONT.CATEGORY(domain, category.slug)}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className="text-base font-medium text-muted-foreground ps-4"
-                    >
-                      {category.name}
-                    </Link>
-                  ))}
+                  {categories.length > 0 && (
+                    <>
+                      <Link
+                        href={ROUTES.STOREFRONT.CATEGORIES_LIST(domain)}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="text-base font-medium text-foreground"
+                      >
+                        الأقسام
+                      </Link>
+                      {categories.map((category) => (
+                        <Link
+                          key={category.id}
+                          href={ROUTES.STOREFRONT.CATEGORY(
+                            domain,
+                            category.slug,
+                          )}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="text-sm text-muted-foreground ps-4"
+                        >
+                          {category.name}
+                        </Link>
+                      ))}
+                    </>
+                  )}
                   <hr className="my-2" />
                   <Link
                     href={ROUTES.STOREFRONT.ACCOUNT.LOGIN(domain)}

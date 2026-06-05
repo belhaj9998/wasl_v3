@@ -6,6 +6,7 @@ import platformRoutes from "./platform.routes";
 import storeAdminRoutes from "./storeAdmin.routes";
 import catalogRoutes from "./catalog.routes";
 import orderRoutes from "./order.routes";
+import orderTagRoutes from "./orderTag.routes";
 import storefrontRoutes from "./storefront.routes";
 import uploadRoutes from "./upload.routes";
 import webhookRoutes from "./webhook.routes";
@@ -42,6 +43,7 @@ router.use("/api/platform", platformRoutes);
 router.use("/api/stores/:storeId", storeAdminRoutes);
 router.use("/api/stores/:storeId", catalogRoutes);
 router.use("/api/stores/:storeId", orderRoutes);
+router.use("/api/stores/:storeId", orderTagRoutes);
 router.use("/api/stores/:domain", Router());
 
 // Upload routes — require authentication and store context

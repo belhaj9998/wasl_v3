@@ -1,9 +1,3 @@
-
-
-
-
-
-
 export const permissionSeeds = [
   {
     code: "catalog.view",
@@ -131,6 +125,37 @@ export const permissionSeeds = [
     action: "manage",
     description: "Manage store settings, domains, and branding.",
   },
+  {
+    code: "orders.tags.read",
+    module: "orders",
+    action: "tags.read",
+    description: "View order tag definitions and assignments",
+  },
+  {
+    code: "orders.tags.write",
+    module: "orders",
+    action: "tags.write",
+    description: "Assign or unassign tags on orders",
+  },
+  {
+    code: "orders.tags.manage",
+    module: "orders",
+    action: "tags.manage",
+    description: "Create, update, or delete order tag definitions",
+  },
+  {
+    code: "orders.assign",
+    module: "orders",
+    action: "assign",
+    description:
+      "Assign orders to staff members (set, change, or clear the order assignee).",
+  },
+  {
+    code: "orders.manage_source",
+    module: "orders",
+    action: "manage_source",
+    description: "Edit the sales-channel source of an order.",
+  },
 ] as const;
 
 export const subscriptionPlans = [
@@ -174,7 +199,8 @@ export const defaultRoleTemplates = [
   {
     name: "Admin",
     slug: "admin",
-    description: "Runs daily store operations except ownership-level decisions.",
+    description:
+      "Runs daily store operations except ownership-level decisions.",
     is_protected: true,
     permissions: [
       "catalog.view",
@@ -192,12 +218,17 @@ export const defaultRoleTemplates = [
       "orders.create",
       "orders.update",
       "orders.manage_status",
+      "orders.assign",
+      "orders.manage_source",
       "payments.view",
       "shipments.manage",
       "coupons.manage",
       "analytics.view",
       "staff.manage",
       "settings.manage",
+      "orders.tags.read",
+      "orders.tags.write",
+      "orders.tags.manage",
     ],
   },
   {
@@ -226,10 +257,14 @@ export const defaultRoleTemplates = [
       "orders.create",
       "orders.update",
       "orders.manage_status",
+      "orders.assign",
+      "orders.manage_source",
       "customers.view",
       "customers.manage",
       "payments.view",
       "shipments.manage",
+      "orders.tags.read",
+      "orders.tags.write",
     ],
   },
 
@@ -257,6 +292,7 @@ export const defaultRoleTemplates = [
       "customers.view",
       "orders.view",
       "payments.view",
+      "orders.tags.read",
     ],
   },
 ] as const;

@@ -30,6 +30,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { CustomerContactActions } from "@/components/orders/CustomerContactActions";
+import { OrderActionBanners } from "@/components/orders/OrderActionBanners";
+import { OrderTagsCard } from "@/components/orders/OrderTagsCard";
+import { AssigneeCard } from "@/components/orders/AssigneeCard";
+import { AssigneeTimelineLine } from "@/components/orders/AssigneeTimelineLine";
+import { SourceCard } from "@/components/orders/SourceCard";
+import { SourceChangedTimelineLine } from "@/components/orders/SourceChangedTimelineLine";
 
 import { useAppDispatch, useAppSelector } from "@/lib/store/hooks";
 import {
@@ -38,6 +45,7 @@ import {
   cancelOrder,
   addOrderNote,
 } from "@/lib/store/slices/orders.thunks";
+import { fetchEligibleAssignees } from "@/lib/store/slices/eligibleAssignees.thunks";
 import { useStore } from "@/hooks/useStore";
 import { getAvailableTransitions } from "@/lib/utils/permissions";
 import { formatCurrency } from "@/lib/utils/formatCurrency";
@@ -52,11 +60,13 @@ import type { OrderStatus, PaymentStatus, OrderSource } from "@/types";
 
 const ORDER_SOURCE_LABELS: Record<OrderSource, { ar: string; en: string }> = {
   STOREFRONT: { ar: "المتجر", en: "Storefront" },
-  ADMIN: { ar: "لوحة التحكم", en: "Admin" },
-  MANUAL: { ar: "يدوي", en: "Manual" },
+  ADMIN: { ar: "لوحة التحكم", en: "Dashboard" },
+  WHATSAPP: { ar: "واتساب", en: "WhatsApp" },
+  PHONE: { ar: "هاتف", en: "Phone" },
   INSTAGRAM: { ar: "انستغرام", en: "Instagram" },
   FACEBOOK: { ar: "فيسبوك", en: "Facebook" },
   TIKTOK: { ar: "تيك توك", en: "TikTok" },
+  OTHER: { ar: "أخرى", en: "Other" },
 };
 
 // ─── Status Variant Helpers ──────────────────────────────────────────────────
@@ -121,8 +131,8 @@ export default function OrderDetailPage() {
 
   const {
     currentOrder: order,
-    loading,
-    error,
+    currentOrderLoading: loading,
+    currentOrderError: error,
   } = useAppSelector((state) => state.orders);
 
   // Cancel dialog state
@@ -142,6 +152,14 @@ export default function OrderDetailPage() {
     if (!currentStoreId || !orderId) return;
     dispatch(fetchOrderById({ storeId: currentStoreId, orderId }));
   }, [dispatch, currentStoreId, orderId]);
+
+  // Pre-warm the eligible-assignees cache so the AssigneeCard dropdown and the
+  // "Assign to me" button are ready promptly. Idempotent (60s TTL), so this is
+  // safe alongside the card's own self-fetch.
+  useEffect(() => {
+    if (!currentStoreId) return;
+    dispatch(fetchEligibleAssignees(currentStoreId));
+  }, [dispatch, currentStoreId]);
 
   // Handle status transition
   const handleTransition = useCallback(
@@ -302,6 +320,9 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
+      {/* Required-Action Banners */}
+      <OrderActionBanners order={order} locale={locale} />
+
       {/* Status Transition Buttons */}
       {!isTerminal && availableTransitions.length > 0 && (
         <Card>
@@ -330,19 +351,6 @@ export default function OrderDetailPage() {
                 {locale === "ar" ? "إلغاء الطلب" : "Cancel Order"}
               </Button>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Terminal state indicator */}
-      {isTerminal && (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">
-              {locale === "ar"
-                ? "هذا الطلب في حالة نهائية ولا يمكن تغيير حالته."
-                : "This order is in a terminal state and cannot be transitioned."}
-            </p>
           </CardContent>
         </Card>
       )}
@@ -456,28 +464,36 @@ export default function OrderDetailPage() {
                 </p>
               ) : (
                 <div className="space-y-4">
-                  {sortedTimeline.map((event) => (
-                    <div
-                      key={event.id}
-                      className="flex gap-3 border-s-2 border-muted ps-4 pb-4 last:pb-0"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{event.event}</p>
-                        {event.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {event.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          {event.actor_name && <span>{event.actor_name}</span>}
-                          <span>•</span>
-                          <span>
-                            {formatRelativeDate(event.created_at, locale)}
-                          </span>
+                  {sortedTimeline.map((event) =>
+                    event.event === "ASSIGNEE_CHANGED" ? (
+                      <AssigneeTimelineLine key={event.id} event={event} />
+                    ) : event.event === "SOURCE_CHANGED" ? (
+                      <SourceChangedTimelineLine key={event.id} event={event} />
+                    ) : (
+                      <div
+                        key={event.id}
+                        className="flex gap-3 border-s-2 border-muted ps-4 pb-4 last:pb-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{event.event}</p>
+                          {event.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {event.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            {event.actor_name && (
+                              <span>{event.actor_name}</span>
+                            )}
+                            <span>•</span>
+                            <span>
+                              {formatRelativeDate(event.created_at, locale)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               )}
             </CardContent>
@@ -498,22 +514,13 @@ export default function OrderDetailPage() {
               <div>
                 <p className="font-medium">{order.customer_name}</p>
               </div>
-              {order.customer_phone && (
-                <div>
-                  <span className="text-muted-foreground">
-                    {locale === "ar" ? "الهاتف: " : "Phone: "}
-                  </span>
-                  <span dir="ltr">{order.customer_phone}</span>
-                </div>
-              )}
-              {order.customer_email && (
-                <div>
-                  <span className="text-muted-foreground">
-                    {locale === "ar" ? "البريد: " : "Email: "}
-                  </span>
-                  <span dir="ltr">{order.customer_email}</span>
-                </div>
-              )}
+              <CustomerContactActions
+                phone={order.customer_phone}
+                email={order.customer_email}
+                customerName={order.customer_name}
+                orderNumber={order.order_number}
+                locale={locale}
+              />
               <div>
                 <span className="text-muted-foreground">
                   {locale === "ar" ? "طريقة الدفع: " : "Payment: "}
@@ -524,6 +531,15 @@ export default function OrderDetailPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Tags */}
+          <OrderTagsCard order={order} locale={locale} />
+
+          {/* Source */}
+          <SourceCard order={order} />
+
+          {/* Assignee */}
+          <AssigneeCard order={order} />
 
           {/* Shipping Address */}
           <Card>

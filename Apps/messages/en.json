@@ -777,6 +777,39 @@
     "sourceManual": "Manual",
     "sourceInstagram": "Instagram",
     "sourceFacebook": "Facebook",
+    "source": {
+      "channels": {
+        "STOREFRONT": "Storefront",
+        "ADMIN": "Dashboard",
+        "WHATSAPP": "WhatsApp",
+        "PHONE": "Phone",
+        "INSTAGRAM": "Instagram",
+        "FACEBOOK": "Facebook",
+        "TIKTOK": "TikTok",
+        "OTHER": "Other",
+        "UNKNOWN": "Unknown"
+      },
+      "badge": { "label": "Source" },
+      "card": {
+        "title": "Source",
+        "edit": "Change source"
+      },
+      "select": { "placeholder": "Select a source" },
+      "filter": {
+        "label": "Source",
+        "clear": "Clear source filter",
+        "selected": "{count, plural, one {# source} other {# sources}}"
+      },
+      "toasts": {
+        "updateSuccess": "Source updated",
+        "errorGeneric": "Something went wrong"
+      },
+      "errors": {
+        "INVALID_ORDER_SOURCE": "Invalid source.",
+        "ORDER_NOT_FOUND": "Order not found.",
+        "FORBIDDEN": "You don't have permission to do this."
+      }
+    },
     "newOrder": {
       "title": "Create Manual Order",
       "description": "Add a new order manually with product and shipping details",
@@ -833,6 +866,51 @@
       "insufficientInventory": "Some products do not have sufficient inventory",
       "availableOnly": "Only {count} available",
       "searching": "Searching..."
+    },
+    "assignee": {
+      "title": "Assignee",
+      "unassigned": "Unassigned",
+      "assignToMe": "Assign to me",
+      "selectPlaceholder": "Pick an assignee",
+      "unassignSentinelLabel": "Unassign",
+      "filter": {
+        "label": "Assignee",
+        "me": "Me",
+        "unassigned": "Unassigned",
+        "selected": "{count, plural, one {# assignee} other {# assignees}}",
+        "clear": "Clear assignee filter"
+      },
+      "column": { "header": "Assignee" },
+      "cannotAssignTerminalStatus": "Cannot reassign closed orders.",
+      "cannotAssignNotEligible": "You are not a member of this store.",
+      "permissions": {
+        "readOnly": "You don't have permission to change the assignee."
+      },
+      "toasts": {
+        "assignSuccess": "Assignee updated",
+        "unassignSuccess": "Order unassigned",
+        "selfAssignSuccess": "Order assigned to you",
+        "errorGeneric": "Something went wrong"
+      },
+      "errors": {
+        "VALIDATION_ERROR": "Invalid assignee selection.",
+        "ASSIGNEE_NOT_ELIGIBLE": "That user is not a member of this store.",
+        "ASSIGNEE_FILTER_INVALID": "Invalid assignee filter.",
+        "ORDER_NOT_FOUND": "Order not found.",
+        "ORDER_TERMINAL_STATUS": "This order is closed and cannot be reassigned.",
+        "FORBIDDEN": "You don't have permission to do this."
+      }
+    },
+    "timeline": {
+      "assigned": "Assigned to {to}",
+      "unassigned": "Unassigned {from}",
+      "reassigned": "Reassigned from {from} to {to}",
+      "selfAssigned": "Self-assigned",
+      "deletedUserSuffix": "(deleted)",
+      "sourceChanged": "Changed source from {from} to {to}"
+    },
+    "list": {
+      "columns": { "assignedUser": "Assignee", "source": "Source" }
     }
   },
   "statuses": {
@@ -1090,5 +1168,103 @@
     "loadError": "Failed to load notification settings",
     "saveError": "Failed to save notification settings",
     "retry": "Retry"
+  },
+  "orderTags": {
+    "page": {
+      "title": "Order Tags",
+      "description": "Manage labels you can attach to orders for workflow flagging and segmentation.",
+      "createButton": "Create tag",
+      "emptyState": {
+        "title": "No tags yet",
+        "description": "Create your first tag to start labeling orders."
+      },
+      "table": {
+        "name": "Name",
+        "assignmentCount": "Orders",
+        "createdAt": "Created",
+        "actions": "Actions"
+      }
+    },
+    "card": {
+      "title": "Tags",
+      "edit": "Edit tags",
+      "empty": "No tags assigned"
+    },
+    "rowExpansion": {
+      "label": "Tags:",
+      "empty": "—"
+    },
+    "filter": {
+      "placeholder": "Filter by tag",
+      "selected": "{count, plural, one {# tag} other {# tags}} selected",
+      "clear": "Clear"
+    },
+    "picker": {
+      "placeholder": "Select tags",
+      "createNew": "Create new tag",
+      "loading": "Loading tags...",
+      "empty": "No tags match your search"
+    },
+    "form": {
+      "name": "Tag name",
+      "namePlaceholder": "e.g. VIP, Rush shipping",
+      "color": "Color",
+      "submitCreate": "Create tag",
+      "submitUpdate": "Save changes",
+      "cancel": "Cancel"
+    },
+    "delete": {
+      "title": "Delete tag",
+      "description": "Delete \"{name}\"? This will remove the tag from {count, plural, one {# order} other {# orders}}.",
+      "confirm": "Delete tag",
+      "cancel": "Cancel"
+    },
+    "bulk": {
+      "addAction": "Add tags",
+      "removeAction": "Remove tags",
+      "selectionCount": "{count, plural, one {# order selected} other {# orders selected}}"
+    },
+    "permissions": {
+      "cannotCreateTag": "You don't have permission to create tags.",
+      "cannotEditTags": "You don't have permission to edit tags on this order."
+    },
+    "toasts": {
+      "createSuccess": "Tag created.",
+      "updateSuccess": "Tag updated.",
+      "deleteSuccess": "Tag deleted.",
+      "assignSuccess": "Tags updated.",
+      "bulkAddSuccess": "Tags added to {count, plural, one {# order} other {# orders}}.",
+      "bulkRemoveSuccess": "Tags removed from {count, plural, one {# order} other {# orders}}.",
+      "errorGeneric": "Something went wrong. Please try again."
+    },
+    "errors": {
+      "TAG_NAME_INVALID": "Tag name must be 1-30 characters.",
+      "TAG_COLOR_INVALID": "Please pick a valid color.",
+      "TAG_NAME_DUPLICATE": "A tag with this name already exists in your store.",
+      "TAG_STORE_LIMIT_REACHED": "You've reached the limit of 50 tags per store.",
+      "TAG_NOT_FOUND": "Tag not found.",
+      "TAG_NOT_FOUND_IN_STORE": "One or more tags don't belong to this store.",
+      "TAG_ORDER_LIMIT_EXCEEDED": "An order can have at most 10 tags.",
+      "ORDER_NOT_FOUND": "Order not found.",
+      "ORDER_NOT_FOUND_IN_STORE": "One or more orders don't belong to this store.",
+      "TAG_FILTER_INVALID": "Invalid tag filter in the URL.",
+      "FORBIDDEN": "You don't have permission to perform this action."
+    },
+    "colors": {
+      "slate": "Slate",
+      "gray": "Gray",
+      "red": "Red",
+      "orange": "Orange",
+      "amber": "Amber",
+      "yellow": "Yellow",
+      "green": "Green",
+      "emerald": "Emerald",
+      "teal": "Teal",
+      "sky": "Sky",
+      "blue": "Blue",
+      "indigo": "Indigo",
+      "purple": "Purple",
+      "pink": "Pink"
+    }
   }
 }

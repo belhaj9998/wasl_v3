@@ -69,6 +69,12 @@ const ALL_SIDEBAR_ITEMS: SidebarItem[] = [
     permission: "staff.manage",
   },
   {
+    path: "/admin/settings/order-tags",
+    label: "وسوم الطلبات",
+    icon: "Tag",
+    permission: "orders.tags.manage",
+  },
+  {
     path: "/admin/settings",
     label: "الإعدادات",
     icon: "Settings",
