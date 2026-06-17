@@ -206,8 +206,35 @@ function auditSourceRejection(
 }
 
 /**
- * Input for creating an order item.
+ * Compact, structured audit log for every source-mutation rejection path.
+ * Mirrors `auditAssigneeRejection`: a single `console.warn` entry is emitted
+ * before the matching `AppError` is thrown. Audit entries MUST NOT be written
+ * to `OrderTimeline` — they are operational logs only.
  */
+function auditSourceRejection(
+  reasonCode: string,
+  context: {
+    store_id: number;
+    actor_user_id: number;
+    order_id: number;
+    target_source: string;
+  },
+): void {
+  // eslint-disable-next-line no-console
+  console.warn(
+    JSON.stringify({
+      level: "warn",
+      event: "ORDER_SOURCE_REJECTED",
+      reason_code: reasonCode,
+      store_id: context.store_id,
+      actor_user_id: context.actor_user_id,
+      payload_summary: {
+        order_id: context.order_id,
+        target_source: context.target_source,
+      },
+    }),
+  );
+}
 interface CreateOrderItemInput {
   product_id: number;
   variant_id: number;
@@ -1501,6 +1528,90 @@ export class OrderService {
     });
 
     // 9. Return the refreshed DTO (current assignee + timeline) — read outside
+    //    the mutation transaction via the shared loader.
+    return this.getById(storeId, orderId);
+  }
+
+  /**
+   * Sets `Order.source` to `source` for `(storeId, orderId)`.
+   * Mirrors `assignAssignee` in structure with these key differences:
+   * - No terminal-status guard: source IS editable on CANCELED/RETURNED/DELIVERED
+   *   (Req 8 — source is a record-keeping field, not an operational one).
+   * - No eligibility check: any channel value from the Editable_Channel set is valid.
+   * - Timeline event is `SOURCE_CHANGED` with `payload: { from, to }` as plain
+   *   enum strings (no live-user snapshot resolution needed).
+   *
+   * No-ops silently when `order.source === source` — returns the current DTO
+   * without writing the row, without appending a timeline entry, and without
+   * bumping `updated_at` (Req 5.4).
+   *
+   * Every rejection path emits a single structured `ORDER_SOURCE_REJECTED`
+   * audit log via {@link auditSourceRejection} before the `AppError` is
+   * thrown. Audit logs are operational only and are never written to
+   * `OrderTimeline`.
+   *
+   * Validates: Requirements 5.1, 5.2, 5.3, 5.4, 5.5, 5.7, 5.8, 6.1, 6.2, 6.3,
+   * 8.1, 8.2, 8.4, 16.1, 16.2, 16.4
+   */
+  async updateOrderSource(
+    storeId: number,
+    orderId: number,
+    source: OrderSource,
+    actorUserId: number,
+  ) {
+    await prisma.$transaction(async (tx) => {
+      // 1. Read the order inside the transaction.
+      const order = await tx.order.findFirst({
+        where: { id: orderId, store_id: storeId },
+        select: {
+          id: true,
+          store_id: true,
+          source: true,
+        },
+      });
+
+      // 2. Cross-tenant / not-found guard (Req 5.5, 16.1, 16.2).
+      if (!order) {
+        auditSourceRejection("ORDER_NOT_FOUND", {
+          store_id: storeId,
+          actor_user_id: actorUserId,
+          order_id: orderId,
+          target_source: source,
+        });
+        throw AppError.notFound("Order not found: ORDER_NOT_FOUND");
+      }
+
+      // 3. No terminal-status guard — source is editable on closed orders (Req 8).
+
+      // 4. No-op short-circuit (Req 5.4). When the requested source already
+      //    equals the current one, leave the row and timeline untouched and do
+      //    NOT bump `updated_at`.
+      if (order.source === source) {
+        return;
+      }
+
+      // 5. Update the source. Prisma's `@updatedAt` on `Order.updated_at`
+      //    bumps the timestamp automatically as part of this write (Req 5.2, 5.3).
+      //    `notes_internal` is never touched (Req 5.8).
+      await tx.order.update({
+        where: { id_store_id: { id: orderId, store_id: storeId } },
+        data: { source },
+      });
+
+      // 6. Append exactly one immutable SOURCE_CHANGED timeline row in the
+      //    same transaction (Req 6.1, 6.2, 6.3, 16.4).
+      await tx.orderTimeline.create({
+        data: {
+          store_id: storeId,
+          order_id: orderId,
+          actor_user_id: actorUserId,
+          event: "SOURCE_CHANGED",
+          payload: { from: order.source, to: source },
+        },
+      });
+    });
+
+    // 7. Return the refreshed DTO (current source + timeline) — read outside
     //    the mutation transaction via the shared loader.
     return this.getById(storeId, orderId);
   }
